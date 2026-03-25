@@ -41,7 +41,7 @@ func main() {
 	roomMgr.OnRoomCreated(gameHandler.OnRoomCreated)
 
 	// ── 启动服务器 ─────────────────────────────────────────────
-	srv := network.NewServer("0.0.0.0:8080", router)
+	srv := network.NewServer("0.0.0.0:43966", router)
 	if err := srv.Start(); err != nil {
 		slog.Error("server exited", "err", err)
 		os.Exit(1)
