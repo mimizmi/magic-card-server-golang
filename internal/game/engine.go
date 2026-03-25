@@ -419,9 +419,19 @@ func (e *Engine) handlePlayCard(seat int, payload []byte) {
 		}
 
 	case card.TypeSkill:
-		// 技能牌不通过 PlayCardReq 触发，放回原槽并提示正确用法
-		_ = p.Hand.PlaceHand(req.Slot, c)
-		e.sendError(seat, protocol.ErrCodeInvalidPhase, "请通过「使用技能」(UseSkillReq) 触发技能牌")
+		// 技能牌可从手牌区或合成区打出，激活角色技能
+		putBack := func() {
+			switch req.Zone {
+			case "hand":
+				_ = p.Hand.PlaceHand(req.Slot, c)
+			case "synth":
+				_ = p.Hand.PutSynth(c) // 放回合成区任意空槽
+			}
+		}
+		if !e.activateSkillCard(seat, c, putBack) {
+			return
+		}
+		e.broadcastState("skill used via play_card")
 	}
 }
 
@@ -781,55 +791,30 @@ func (e *Engine) sendError(seat, code int, msg string) {
 //  角色技能处理
 // ════════════════════════════════════════════════════════════════
 
-// handleUseSkill 处理 MsgUseSkillReq：消耗技能牌，激活普通/强化技能。
-func (e *Engine) handleUseSkill(seat int, payload []byte) {
-	req, err := protocol.Decode[protocol.UseSkillReq](payload)
-	if err != nil {
-		e.sendError(seat, protocol.ErrCodeInvalidSlot, "无效请求格式")
-		return
-	}
-
+// activateSkillCard 对已取出的技能牌执行激活逻辑（校验→扣能→广播→应用效果）。
+// putBack 在校验失败时调用，将牌放回原位；成功时牌被消耗，不调用 putBack。
+// 返回 true 表示激活成功。
+func (e *Engine) activateSkillCard(seat int, c *card.Card, putBack func()) bool {
 	p := e.state.Players[seat]
 	if p.Char == nil {
+		putBack()
 		e.sendError(seat, protocol.ErrCodeInvalidPhase, "尚未选择角色")
-		return
+		return false
 	}
-
-	// 从手牌取出技能牌
-	c, err := p.Hand.TakeHand(req.SkillCardSlot)
-	if err != nil {
-		e.sendError(seat, protocol.ErrCodeInvalidSlot, err.Error())
-		return
-	}
-	if c == nil {
-		e.sendError(seat, protocol.ErrCodeNoCard, "该槽位没有牌")
-		return
-	}
-	if c.CardType != card.TypeSkill {
-		// 不是技能牌，放回原槽
-		_ = p.Hand.PlaceHand(req.SkillCardSlot, c)
-		e.sendError(seat, protocol.ErrCodeInvalidSlot, "该槽位不是技能牌")
-		return
-	}
-
-	// 根据牌点数决定技能档位，检查能量
 	result, cost, err := p.Char.UseSkill(c.Points)
 	if err != nil {
-		_ = p.Hand.PlaceHand(req.SkillCardSlot, c)
+		putBack()
 		e.sendError(seat, protocol.ErrCodeInvalidPhase, err.Error())
-		return
+		return false
 	}
 	if p.Energy < cost {
-		_ = p.Hand.PlaceHand(req.SkillCardSlot, c)
+		putBack()
 		e.sendError(seat, protocol.ErrCodeInvalidPhase, "能量不足")
-		return
+		return false
 	}
-
-	// 扣除能量，技能牌消耗（已从手牌取出，直接丢弃）
 	p.Energy -= cost
 	p.CharRevealed = true
 
-	// 广播技能使用事件（公开角色身份）
 	charDisplayName := p.CharacterID
 	if def, ok := character.Get(p.CharacterID); ok {
 		charDisplayName = def.Name
@@ -840,8 +825,37 @@ func (e *Engine) handleUseSkill(seat int, payload []byte) {
 		SkillLevel: int(result.Tier),
 		Desc:       result.Desc,
 	}))
-
 	e.applySkillResult(seat, result)
+	return true
+}
+
+// handleUseSkill 处理 MsgUseSkillReq：从手牌区取出技能牌并激活。
+func (e *Engine) handleUseSkill(seat int, payload []byte) {
+	req, err := protocol.Decode[protocol.UseSkillReq](payload)
+	if err != nil {
+		e.sendError(seat, protocol.ErrCodeInvalidSlot, "无效请求格式")
+		return
+	}
+
+	p := e.state.Players[seat]
+	c, err := p.Hand.TakeHand(req.SkillCardSlot)
+	if err != nil {
+		e.sendError(seat, protocol.ErrCodeInvalidSlot, err.Error())
+		return
+	}
+	if c == nil {
+		e.sendError(seat, protocol.ErrCodeNoCard, "该槽位没有牌")
+		return
+	}
+	if c.CardType != card.TypeSkill {
+		_ = p.Hand.PlaceHand(req.SkillCardSlot, c)
+		e.sendError(seat, protocol.ErrCodeInvalidSlot, "该槽位不是技能牌")
+		return
+	}
+
+	if !e.activateSkillCard(seat, c, func() { _ = p.Hand.PlaceHand(req.SkillCardSlot, c) }) {
+		return
+	}
 	e.broadcastState("skill used")
 }
 
