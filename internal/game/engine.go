@@ -403,6 +403,7 @@ func (e *Engine) handleSynthesize(seat int, payload []byte) {
 			code = protocol.ErrCodeSynthAlready
 		}
 		e.sendError(seat, code, err.Error())
+		e.sendStateTo(seat, "synth failed")
 		return
 	}
 

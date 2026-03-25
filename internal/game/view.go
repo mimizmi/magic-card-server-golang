@@ -1,6 +1,7 @@
 package game
 
 import (
+	"echo/internal/game/character"
 	"echo/internal/protocol"
 )
 
@@ -40,7 +41,9 @@ func BuildView(gs *GameState, forSeat int) *protocol.GameStateView {
 // buildSelfView 构建"自己"的完整视图。
 func buildSelfView(p *PlayerState) protocol.PlayerView {
 	charName := p.CharacterID
-	if charName == "" {
+	if def, ok := character.Get(p.CharacterID); ok {
+		charName = def.Name
+	} else if charName == "" {
 		charName = "???" // 尚未选择角色
 	}
 
