@@ -228,6 +228,12 @@ type GameOverEv struct {
 	Reason     string `json:"reason"` // "hp_zero" / "secret_realm_highest_hp"
 }
 
+// TurnTimerEv S→C 行动倒计时通知，每秒推送一次，行动阶段结束后停止。
+type TurnTimerEv struct {
+	ActiveSeat  int `json:"active_seat"`  // 当前行动方
+	SecondsLeft int `json:"seconds_left"` // 剩余秒数（0-60）
+}
+
 // ErrorEv S→C 操作错误反馈（非致命，连接不断开）。
 // 例如：在非行动阶段出牌、合成区已满、不满足技能门槛等。
 type ErrorEv struct {

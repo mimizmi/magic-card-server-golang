@@ -54,4 +54,5 @@ const (
 	MsgErrorEv        uint16 = 5007 // S→C 操作错误反馈（非法操作、时序错误等）
 	MsgBlessingEv          uint16 = 5008 // S→C 赐福触发（HP<40，获得第二角色）
 	MsgIncomingAttackEv    uint16 = 5009 // S→C 来袭攻击通知（等待防御）
+	MsgTurnTimerEv         uint16 = 5010 // S→C 行动倒计时（每秒推送）
 )

@@ -223,6 +223,29 @@ func (e *Engine) runAction() bool {
 	e.broadcastPhaseChange()
 	e.broadcastState("action phase start")
 
+	const turnDuration = 60 * time.Second
+	var turnDeadline time.Time
+
+	turnTimer := time.NewTimer(turnDuration)
+	defer turnTimer.Stop()
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	// resetTimer 重置计时器并广播初始剩余时间（60s）
+	resetTimer := func() {
+		if !turnTimer.Stop() {
+			select {
+			case <-turnTimer.C:
+			default:
+			}
+		}
+		turnTimer.Reset(turnDuration)
+		turnDeadline = time.Now().Add(turnDuration)
+		e.broadcastTurnTimer(e.state.ActiveSeat, 60)
+	}
+	resetTimer()
+
 	for {
 		// 双方都结束行动
 		if e.state.Players[0].ActionDone && e.state.Players[1].ActionDone {
@@ -231,11 +254,49 @@ func (e *Engine) runAction() bool {
 
 		select {
 		case act := <-e.actionCh:
+			prevSeat := e.state.ActiveSeat
 			e.processAction(act)
+			// 行动权切换时重置倒计时
+			if e.state.ActiveSeat != prevSeat && !e.state.Players[e.state.ActiveSeat].ActionDone {
+				resetTimer()
+			}
+
+		case <-turnTimer.C:
+			// 超时自动结束当前行动方的回合
+			seat := e.state.ActiveSeat
+			if !e.state.Players[seat].ActionDone {
+				slog.Info("turn timeout, auto-ending action", "seat", seat, "round", e.state.Round)
+				e.state.Players[seat].ActionDone = true
+				opp := e.state.Players[1-seat]
+				if !opp.ActionDone {
+					e.state.ActiveSeat = 1 - seat
+					resetTimer()
+				}
+				e.broadcastState("turn timeout")
+			}
+
+		case <-ticker.C:
+			// 每秒推送剩余时间
+			if !e.state.Players[e.state.ActiveSeat].ActionDone {
+				remaining := int(time.Until(turnDeadline).Seconds())
+				if remaining < 0 {
+					remaining = 0
+				}
+				e.broadcastTurnTimer(e.state.ActiveSeat, remaining)
+			}
+
 		case <-e.ctx.Done():
 			return false
 		}
 	}
+}
+
+// broadcastTurnTimer 广播行动倒计时给双方。
+func (e *Engine) broadcastTurnTimer(activeSeat, secondsLeft int) {
+	e.room.Broadcast(protocol.MsgTurnTimerEv, protocol.MustEncode(protocol.TurnTimerEv{
+		ActiveSeat:  activeSeat,
+		SecondsLeft: secondsLeft,
+	}))
 }
 
 // processAction 处理一条玩家行动消息，所有操作在此串行执行。
