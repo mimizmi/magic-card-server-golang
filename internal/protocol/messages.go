@@ -241,6 +241,7 @@ const (
 	ErrCodeInvalidSlot     = 1002 // 无效槽位
 	ErrCodeNoCard          = 1003 // 指定槽位没有牌
 	ErrCodeSynthSameType   = 1004 // 同种牌型无法合成
+	ErrCodeSynthAlready    = 1009 // 合成产物不可再次合成
 	ErrCodeSkillNoCard     = 1005 // 手中无技能牌
 	ErrCodeSkillThreshold  = 1006 // 技能牌点数不足
 	ErrCodeLibrateNotReady = 1007 // 能量未达到解放阈值

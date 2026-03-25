@@ -396,8 +396,11 @@ func (e *Engine) handleSynthesize(seat int, payload []byte) {
 	)
 	if err != nil {
 		code := protocol.ErrCodeInvalidSlot
-		if err == card.ErrSameCardType {
+		switch err {
+		case card.ErrSameCardType:
 			code = protocol.ErrCodeSynthSameType
+		case card.ErrAlreadySynthesized:
+			code = protocol.ErrCodeSynthAlready
 		}
 		e.sendError(seat, code, err.Error())
 		return

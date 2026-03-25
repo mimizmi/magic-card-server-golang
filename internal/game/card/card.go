@@ -123,19 +123,23 @@ const (
 //   - 牌主自己永远能看到自己的牌
 //   - 协议层（CardView.Points = nil）用于表达这个状态
 type Card struct {
-	ID         string
-	SubFaction SubFaction
-	CardType   CardType
-	Points     int  // 1-5（合成后可能最高 7）
-	IsHidden   bool // 点数对对手隐藏（场地效果触发）
+	ID          string
+	SubFaction  SubFaction
+	CardType    CardType
+	Points      int  // 基础牌 1-5；合成后点数由加法/乘法决定，无硬性上限
+	IsHidden    bool // 点数对对手隐藏（场地效果触发）
+	Synthesized bool // 已参与过一次合成；合成产物不可再次作为原料合成
 }
 
 func (c *Card) String() string {
-	hidden := ""
+	suffix := ""
 	if c.IsHidden {
-		hidden = "[隐藏]"
+		suffix += "[隐藏]"
 	}
-	return fmt.Sprintf("[%s·%s %d点%s]", c.SubFaction, c.CardType, c.Points, hidden)
+	if c.Synthesized {
+		suffix += "[已合成]"
+	}
+	return fmt.Sprintf("[%s·%s %d点%s]", c.SubFaction, c.CardType, c.Points, suffix)
 }
 
 // ════════════════════════════════════════════════════════════════

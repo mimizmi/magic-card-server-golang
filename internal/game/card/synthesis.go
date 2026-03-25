@@ -41,9 +41,10 @@ type SynthesisOpts struct {
 }
 
 // DefaultOpts 返回无场地效果时的标准合成选项。
+// PointsCap = 0 表示不截断合成结果（同大系乘法可产生超过 5 的点数）。
 func DefaultOpts() SynthesisOpts {
 	return SynthesisOpts{
-		PointsCap:         MaxPoints,
+		PointsCap:         0,
 		ReincarnationRule: ReincarnationNormal,
 	}
 }
@@ -55,12 +56,19 @@ func DefaultOpts() SynthesisOpts {
 // ErrSameCardType 是同种牌型合成的错误，对应协议层 ErrCodeSynthSameType。
 var ErrSameCardType = errors.New("同种牌型无法合成")
 
+// ErrAlreadySynthesized 是合成产物再次合成的错误，对应协议层 ErrCodeSynthAlready。
+var ErrAlreadySynthesized = errors.New("合成后的牌不能再次参与合成")
+
 // Validate 检查两张牌能否合成。
-// 游戏规则约束：同种功能牌型（攻击+攻击、技能+技能、能耗+能耗）均禁止。
-// 大系相同还是不同不影响合法性，只影响点数计算方式。
+// 游戏规则约束：
+//   - 同种功能牌型（攻击+攻击、技能+技能、能耗+能耗）禁止合成
+//   - 已合成过的牌（Synthesized=true）不能再次作为原料
 func Validate(a, b *Card) error {
 	if a == nil || b == nil {
 		return errors.New("不能合成空牌")
+	}
+	if a.Synthesized || b.Synthesized {
+		return ErrAlreadySynthesized
 	}
 	if a.CardType == b.CardType {
 		return fmt.Errorf("%w（%s + %s）", ErrSameCardType, a.CardType, b.CardType)
@@ -84,35 +92,40 @@ func Validate(a, b *Card) error {
 //   这给了玩家主动权：想要攻击牌结果，就把攻击牌放在第一位置。
 //   比"随机决定"或"固定规则决定"更有策略性。
 func Combine(base, ingredient *Card, opts SynthesisOpts) (*Card, error) {
-	// 混沌之域：跳过同类型检查；否则走标准验证
+	// 混沌之域（AllowSameType）：跳过同类型检查，但仍须检查已合成标记和空牌
 	if !opts.AllowSameType {
 		if err := Validate(base, ingredient); err != nil {
 			return nil, err
 		}
-	} else if base == nil || ingredient == nil {
-		return nil, errors.New("不能合成空牌")
+	} else {
+		if base == nil || ingredient == nil {
+			return nil, errors.New("不能合成空牌")
+		}
+		if base.Synthesized || ingredient.Synthesized {
+			return nil, ErrAlreadySynthesized
+		}
 	}
 
 	points := calcPoints(base, ingredient, opts)
 
-	// 点数上限截断
-	// 虚幻之境·实：结果为虚幻牌时上限 7，否则沿用 PointsCap（默认 5）
-	cap := opts.PointsCap
-	if cap <= 0 {
-		cap = MaxPoints
-	}
+	// 点数上限：
+	//   - PointsCap > 0：使用显式上限（场地效果可设置）
+	//   - PointsCap == 0：不截断，允许加法/乘法产生任意大值
+	// 虚幻之境·实特例：结果为虚幻牌时上限提升至 MaxPointsWithField（7）
 	if opts.IllusionBonus && base.SubFaction == SubIllusion {
-		cap = MaxPointsWithField
-	}
-	if points > cap {
-		points = cap
+		if points > MaxPointsWithField {
+			points = MaxPointsWithField
+		}
+	} else if opts.PointsCap > 0 && points > opts.PointsCap {
+		points = opts.PointsCap
 	}
 
 	return &Card{
-		ID:         newCardID(),
-		SubFaction: base.SubFaction,
-		CardType:   base.CardType,
-		Points:     points,
+		ID:          newCardID(),
+		SubFaction:  base.SubFaction,
+		CardType:    base.CardType,
+		Points:      points,
+		Synthesized: true, // 产物标记为已合成，不可再次作为原料
 	}, nil
 }
 
