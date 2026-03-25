@@ -57,5 +57,5 @@ jobs:
             docker run -d \
               --name magic-card-server \
               --restart unless-stopped \
-              -p 8080:8080 \
+              -p 43966:43966 \
               ghcr.io/${{ github.repository }}:latest
