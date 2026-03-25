@@ -42,6 +42,7 @@ const (
 	MsgUseSkillReq        uint16 = 4004 // C→S 使用主动技能
 	MsgTriggerLibrateReq  uint16 = 4005 // C→S 手动触发解放（适用于主动解放型角色）
 	MsgEndActionReq       uint16 = 4006 // C→S 宣告结束行动阶段
+	MsgDefenseReq         uint16 = 4007 // C→S 防御出牌（响应来袭攻击，Pass=true 表示不防御）
 
 	// ── 游戏事件推送 ───────────────────────────────────────
 	MsgDamageEv       uint16 = 5001 // S→C 伤害结算明细
@@ -51,5 +52,6 @@ const (
 	MsgPlayerStatusEv uint16 = 5005 // S→C HP/能量变化（增量更新，不发完整状态）
 	MsgGameOverEv     uint16 = 5006 // S→C 游戏结束
 	MsgErrorEv        uint16 = 5007 // S→C 操作错误反馈（非法操作、时序错误等）
-	MsgBlessingEv     uint16 = 5008 // S→C 赐福触发（HP<40，获得第二角色）
+	MsgBlessingEv          uint16 = 5008 // S→C 赐福触发（HP<40，获得第二角色）
+	MsgIncomingAttackEv    uint16 = 5009 // S→C 来袭攻击通知（等待防御）
 )

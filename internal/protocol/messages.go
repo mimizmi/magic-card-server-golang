@@ -144,6 +144,21 @@ type TriggerLibrateReq struct{}
 // 双方都结束行动后，进入交战结算阶段。
 type EndActionReq struct{}
 
+// DefenseReq C→S 防御出牌，响应对手的来袭攻击。
+// Pass=true：放弃防御，承受全部伤害。
+// Pass=false：用指定槽位的牌抵消对应点数的伤害。
+type DefenseReq struct {
+	Pass bool   `json:"pass"`
+	Zone string `json:"zone,omitempty"` // "hand" or "synth"
+	Slot int    `json:"slot,omitempty"`
+}
+
+// IncomingAttackEv S→C 来袭攻击通知（防御窗口开启时推送）。
+type IncomingAttackEv struct {
+	AttackerSeat int `json:"attacker_seat"`
+	AttackPoints int `json:"attack_points"`
+}
+
 // ════════════════════════════════════════════════════════════════
 //  游戏事件（服务端主动推送）
 // ════════════════════════════════════════════════════════════════

@@ -240,6 +240,21 @@ func (e *Engine) runAction() bool {
 
 // processAction 处理一条玩家行动消息，所有操作在此串行执行。
 func (e *Engine) processAction(act action) {
+	// 防御窗口期间：即使防御方已宣告结束行动，仍必须响应来袭攻击
+	if e.state.PendingAttack != nil {
+		defSeat := 1 - e.state.PendingAttack.AttackerSeat
+		if act.Seat != defSeat {
+			e.sendError(act.Seat, protocol.ErrCodeInvalidPhase, "等待对手防御中")
+			return
+		}
+		if act.MsgID != protocol.MsgDefenseReq {
+			e.sendError(act.Seat, protocol.ErrCodeInvalidPhase, "请先响应来袭攻击（出牌防御或放弃防御）")
+			return
+		}
+		e.handleDefenseAction(act.Seat, act.Payload)
+		return
+	}
+
 	p := e.state.Players[act.Seat]
 
 	// 已宣告结束的玩家不能再操作
@@ -313,10 +328,21 @@ func (e *Engine) handlePlayCard(seat int, payload []byte) {
 
 	switch c.CardType {
 	case card.TypeAttack:
-		// 攻击牌：提交到本轮交战，后出覆盖先出
-		p.PlayedAttack = c
-		slog.Info("attack card played", "seat", seat, "card", c.String())
-		e.broadcastState("attack card committed")
+		// 攻击牌：即时结算（三国杀式），打出后对手进入防御窗口
+		attackPoints := c.Points
+		attackPoints = e.applyOutgoing(p, attackPoints)
+		if e.state.FieldEffect != nil {
+			attackPoints += e.state.FieldEffect.BonusAttack
+		}
+		defSeat := 1 - seat
+		e.state.PendingAttack = &PendingAttack{AttackerSeat: seat, AttackPoints: attackPoints}
+		e.state.ActiveSeat = defSeat
+		slog.Info("attack played, defense window opened",
+			"seat", seat, "attackPoints", attackPoints, "defSeat", defSeat)
+		e.room.Broadcast(protocol.MsgIncomingAttackEv, protocol.MustEncode(protocol.IncomingAttackEv{
+			AttackerSeat: seat, AttackPoints: attackPoints,
+		}))
+		e.broadcastState("attack pending, awaiting defense")
 
 	case card.TypeEnergy:
 		// 能耗牌：转化为能量
@@ -350,6 +376,7 @@ func (e *Engine) handleMoveToSynth(seat int, payload []byte) {
 		return
 	}
 	e.sendStateTo(seat, "move to synth")
+	e.sendStateTo(1-seat, "opponent move to synth") // 更新对手合成区张数
 }
 
 // handleSynthesize 执行合成操作。
@@ -378,45 +405,72 @@ func (e *Engine) handleSynthesize(seat int, payload []byte) {
 
 	slog.Info("synthesis done", "seat", seat, "result", result.String())
 	e.sendStateTo(seat, "synthesize")
+	e.sendStateTo(1-seat, "opponent synthesize") // 更新对手合成区张数
 }
 
 // runCombat 交战结算阶段。
+// 三国杀式即时结算：攻击已在行动阶段逐一结算，此阶段仅作阶段标记。
 func (e *Engine) runCombat() {
 	e.state.Phase = PhaseCombat
 	e.broadcastPhaseChange()
+	e.broadcastState("combat phase")
+}
 
-	p0, p1 := e.state.Players[0], e.state.Players[1]
-
-	atk0, atk1 := 0, 0
-	if p0.PlayedAttack != nil {
-		atk0 = p0.PlayedAttack.Points
-	}
-	if p1.PlayedAttack != nil {
-		atk1 = p1.PlayedAttack.Points
-	}
-
-	// 场地效果：回响之地 +BonusAttack
-	bonus := 0
-	if e.state.FieldEffect != nil {
-		bonus = e.state.FieldEffect.BonusAttack
+// handleDefenseAction 处理防御窗口期内的 DefenseReq。
+// 防御方可以打出一张牌抵消对应点数的伤害，或 Pass 承受全部伤害。
+func (e *Engine) handleDefenseAction(seat int, payload []byte) {
+	req, err := protocol.Decode[protocol.DefenseReq](payload)
+	if err != nil {
+		e.sendError(seat, protocol.ErrCodeInvalidSlot, "无效请求格式")
+		return
 	}
 
-	// 角色被动：攻击方 BonusOutgoing（主角色 + 赐福第二角色叠加）
-	atk0 = e.applyOutgoing(e.state.Players[0], atk0)
-	atk1 = e.applyOutgoing(e.state.Players[1], atk1)
+	pending := e.state.PendingAttack
+	attackPoints := pending.AttackPoints
+	atkSeat := pending.AttackerSeat
 
-	if atk0 > 0 {
-		e.applyDamage(1, atk0+bonus, "攻击牌伤害")
+	// 清除防御窗口，归还行动权给攻击方
+	e.state.PendingAttack = nil
+	e.state.ActiveSeat = atkSeat
+
+	if req.Pass {
+		// 放弃防御：承受全部伤害
+		slog.Info("defense passed", "seat", seat, "damage", attackPoints)
+		e.applyDamage(seat, attackPoints, "攻击牌伤害")
+		e.broadcastState("defense passed")
+		return
 	}
-	if atk1 > 0 {
-		e.applyDamage(0, atk1+bonus, "攻击牌伤害")
+
+	// 出牌防御：取出指定牌
+	p := e.state.Players[seat]
+	var defCard *card.Card
+	switch req.Zone {
+	case "hand":
+		defCard, err = p.Hand.TakeHand(req.Slot)
+	case "synth":
+		defCard, err = p.Hand.TakeSynth(req.Slot)
+	default:
+		// 区域非法，回退到 Pass 处理
+		e.applyDamage(seat, attackPoints, "攻击牌伤害")
+		e.broadcastState("defense invalid zone, treated as pass")
+		return
+	}
+	if err != nil || defCard == nil {
+		// 槽位无牌，同 Pass 处理
+		e.applyDamage(seat, attackPoints, "攻击牌伤害")
+		e.broadcastState("defense card missing, treated as pass")
+		return
 	}
 
-	// 清除已使用的攻击牌
-	p0.PlayedAttack = nil
-	p1.PlayedAttack = nil
+	remaining := attackPoints - defCard.Points
+	slog.Info("defense card played",
+		"seat", seat, "defPoints", defCard.Points,
+		"atkPoints", attackPoints, "remaining", remaining)
 
-	e.broadcastState("combat resolved")
+	if remaining > 0 {
+		e.applyDamage(seat, remaining, "攻击牌伤害（防御后剩余）")
+	}
+	e.broadcastState("defense resolved")
 }
 
 // applyDamage 对目标玩家造成伤害，处理濒死逻辑，推送伤害事件。

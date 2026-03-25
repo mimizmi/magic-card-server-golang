@@ -18,15 +18,23 @@ package protocol
 //    - 虚幻之境·虚场地效果：对手的非虚幻牌点数本阶段隐藏
 // ════════════════════════════════════════════════════════════════
 
+// PendingAttackView 告知客户端当前行动阶段有一次待防御的攻击。
+// 只在攻击已打出、防御窗口开启时存在，其他时候为 nil（JSON omitempty）。
+type PendingAttackView struct {
+	AttackerSeat int `json:"attacker_seat"`
+	AttackPoints int `json:"attack_points"`
+}
+
 // GameStateView 是发送给某一位玩家的游戏状态视图。
 // Phase 4（游戏引擎）会调用 BuildView 填充这个结构体。
 type GameStateView struct {
-	Round       int          `json:"round"`
-	Phase       string       `json:"phase"`        // "field_draw","draw","action","combat","cleanup","secret_realm"
-	ActiveSeat  int          `json:"active_seat"`  // 当前该谁操作
-	FieldEffect string       `json:"field_effect"` // 当前场地效果名称
-	Me          PlayerView   `json:"me"`
-	Opponent    OpponentView `json:"opponent"`
+	Round         int                `json:"round"`
+	Phase         string             `json:"phase"`         // "field_draw","draw","action","combat","cleanup","secret_realm"
+	ActiveSeat    int                `json:"active_seat"`   // 当前该谁操作
+	FieldEffect   string             `json:"field_effect"`  // 当前场地效果名称
+	PendingAttack *PendingAttackView `json:"pending_attack,omitempty"` // 非nil=防御窗口开启
+	Me            PlayerView         `json:"me"`
+	Opponent      OpponentView       `json:"opponent"`
 }
 
 // PlayerView 是玩家看到的自己的完整信息。

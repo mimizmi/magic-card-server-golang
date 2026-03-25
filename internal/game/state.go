@@ -103,14 +103,23 @@ func (p *PlayerState) drawCards() {
 // 设计原则：Engine 是这个结构体的唯一写者，其他所有 goroutine
 // 只能通过 Engine.SubmitAction 投递消息，不直接修改 GameState。
 // 这保证了"单写者"的线程安全，无需对 GameState 加锁。
+// PendingAttack 记录行动阶段已打出、等待防御响应的攻击信息。
+type PendingAttack struct {
+	AttackerSeat int
+	AttackPoints int // 已含角色加成和场地加成
+}
+
 type GameState struct {
 	GameID string
 	Round  int
 	Phase  Phase
 
 	// ActiveSeat 是行动阶段当前该谁操作（0 或 1）。
-	// 非行动阶段时值无意义。
+	// 防御窗口期间指向防御方；防御结束后恢复到攻击方。
 	ActiveSeat int
+
+	// PendingAttack 非 nil 表示防御窗口开启，等待防御方响应。
+	PendingAttack *PendingAttack
 
 	Players [2]*PlayerState
 

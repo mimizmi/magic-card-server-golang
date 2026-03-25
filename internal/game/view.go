@@ -20,7 +20,7 @@ func BuildView(gs *GameState, forSeat int) *protocol.GameStateView {
 	if gs.FieldEffect != nil {
 		fieldName = gs.FieldEffect.Name
 	}
-	return &protocol.GameStateView{
+	view := &protocol.GameStateView{
 		Round:       gs.Round,
 		Phase:       string(gs.Phase),
 		ActiveSeat:  gs.ActiveSeat,
@@ -28,6 +28,13 @@ func BuildView(gs *GameState, forSeat int) *protocol.GameStateView {
 		Me:          buildSelfView(me),
 		Opponent:    buildOpponentView(opp),
 	}
+	if gs.PendingAttack != nil {
+		view.PendingAttack = &protocol.PendingAttackView{
+			AttackerSeat: gs.PendingAttack.AttackerSeat,
+			AttackPoints: gs.PendingAttack.AttackPoints,
+		}
+	}
+	return view
 }
 
 // buildSelfView 构建"自己"的完整视图。
