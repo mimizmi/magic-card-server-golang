@@ -223,7 +223,7 @@ func (e *Engine) runAction() bool {
 	e.broadcastPhaseChange()
 	e.broadcastState("action phase start")
 
-	const turnDuration = 60 * time.Second
+	const turnDuration = 90 * time.Second
 	var turnDeadline time.Time
 
 	turnTimer := time.NewTimer(turnDuration)
@@ -232,7 +232,7 @@ func (e *Engine) runAction() bool {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	// resetTimer 重置计时器并广播初始剩余时间（60s）
+	// resetTimer 重置计时器并广播初始剩余时间（90s）
 	resetTimer := func() {
 		if !turnTimer.Stop() {
 			select {
@@ -242,7 +242,7 @@ func (e *Engine) runAction() bool {
 		}
 		turnTimer.Reset(turnDuration)
 		turnDeadline = time.Now().Add(turnDuration)
-		e.broadcastTurnTimer(e.state.ActiveSeat, 60)
+		e.broadcastTurnTimer(e.state.ActiveSeat, 90)
 	}
 	resetTimer()
 
