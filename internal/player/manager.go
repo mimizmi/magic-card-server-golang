@@ -193,6 +193,15 @@ func (m *Manager) handleDisconnect(sessionID string, p *Player) {
 	}
 }
 
+// NewAIPlayer 创建虚拟 AI 玩家实体（无 Session，发送消息会被静默丢弃）。
+// AI 玩家仅供服务端内部使用，不会有任何网络连接。
+func NewAIPlayer(name string) *Player {
+	return &Player{
+		ID:   "ai-" + generateToken()[:8],
+		Name: name,
+	}
+}
+
 // generateToken 生成 32 字符的随机十六进制字符串。
 func generateToken() string {
 	b := make([]byte, 16)

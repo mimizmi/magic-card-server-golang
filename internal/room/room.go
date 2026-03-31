@@ -30,8 +30,9 @@ type Room struct {
 	mu        sync.Mutex
 	createdAt time.Time
 
-	// Phase 4 在此注入游戏引擎：
-	// engine *game.Engine
+	// 人机对战配置：AISeat=-1 表示 PvP，>=0 表示该座位由 AI 控制。
+	AISeat   int    // -1 = PvP; 0 or 1 = AI seat
+	AICharID string // 仅 AISeat >= 0 时有效，AI 预选角色 ID
 }
 
 // Broadcast 向房间内所有玩家发送相同消息。
@@ -101,6 +102,7 @@ func (m *Manager) CreateRoom(p0, p1 *player.Player) *Room {
 		ID:        fmt.Sprintf("room-%d", roomIDCounter.Add(1)),
 		Players:   [2]*player.Player{p0, p1},
 		createdAt: time.Now(),
+		AISeat:    -1, // PvP，无 AI
 	}
 	m.rooms.Store(r.ID, r)
 
@@ -136,6 +138,46 @@ func (m *Manager) CreateRoom(p0, p1 *player.Player) *Room {
 	// Phase 4：在此启动游戏引擎
 	// r.engine = game.NewEngine(r)
 	// go r.engine.Start()
+
+	return r
+}
+
+// CreateAIRoom 为一名玩家和一个虚拟 AI 创建房间，即时开始（无需排队）。
+// 人类玩家始终坐 Seat 0（先手），AI 坐 Seat 1（后手）。
+// aiCharID 是 AI 的预选角色，引擎启动后会自动完成 AI 的角色选择步骤。
+func (m *Manager) CreateAIRoom(human *player.Player, aiCharID string) *Room {
+	aiPlayer := player.NewAIPlayer("AI")
+	r := &Room{
+		ID:        fmt.Sprintf("room-%d", roomIDCounter.Add(1)),
+		Players:   [2]*player.Player{human, aiPlayer},
+		createdAt: time.Now(),
+		AISeat:    1,
+		AICharID:  aiCharID,
+	}
+	m.rooms.Store(r.ID, r)
+	human.SetRoom(r.ID)
+
+	slog.Info("AI room created",
+		"roomID", r.ID,
+		"humanSeat", 0,
+		"humanID", human.ID,
+		"aiCharID", aiCharID,
+	)
+
+	// 触发 OnRoomCreated 钩子（创建游戏引擎）
+	m.hookMu.RLock()
+	hooks := m.onCreatedHooks
+	m.hookMu.RUnlock()
+	for _, fn := range hooks {
+		go fn(r)
+	}
+
+	// 只通知人类玩家：匹配成功，对手名为 "AI"
+	human.Send(protocol.MsgMatchFoundEv, protocol.MustEncode(protocol.MatchFoundEv{
+		GameID:       r.ID,
+		YourSeat:     0,
+		OpponentName: "AI",
+	}))
 
 	return r
 }

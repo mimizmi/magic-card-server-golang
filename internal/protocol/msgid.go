@@ -33,6 +33,7 @@ const (
 	MsgMatchFoundEv       uint16 = 2004 // S→C 匹配成功，进入角色选择
 	MsgSelectCharacterReq uint16 = 2005 // C→S 选择角色（暗置）
 	MsgGameStartEv        uint16 = 2006 // S→C 双方均已选角，游戏正式开始
+	MsgCreateAIGameReq    uint16 = 2007 // C→S 创建人机对战（即时开始，不进匹配队列）
 
 	// ── 游戏状态同步 ───────────────────────────────────────
 	MsgGameStateEv  uint16 = 3001 // S→C 完整状态快照（阶段开始时发送）

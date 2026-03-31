@@ -92,6 +92,13 @@ type SelectCharacterReq struct {
 	CharacterID string `json:"character_id"`
 }
 
+// CreateAIGameReq C→S 请求创建人机对战房间（无需排队，即时开始）。
+// 玩家和 AI 的角色 ID 均在此消息中指定，服务端立即创建房间并自动为 AI 选角。
+type CreateAIGameReq struct {
+	PlayerCharID string `json:"player_char_id"` // 玩家选择的角色
+	AICharID     string `json:"ai_char_id"`     // 电脑使用的角色
+}
+
 // GameStartEv S→C 游戏正式开始通知。
 // 包含双方座位和初始状态，客户端收到后切换到游戏界面。
 type GameStartEv struct {

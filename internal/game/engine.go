@@ -46,9 +46,15 @@ type Engine struct {
 	cancel   context.CancelFunc
 	stopOnce sync.Once
 	rng      *rand.Rand // 每个引擎独立的随机数源，保证房间间随机独立
+
+	// 人机对战配置：aiSeat=-1 表示 PvP，否则为 AI 的座位编号。
+	// aiCharID 是 AI 预选的角色 ID，waitCharacterSelect 会自动完成 AI 的选角。
+	aiSeat   int
+	aiCharID string
 }
 
 // NewEngine 创建游戏引擎，绑定到指定房间。
+// 若 Room.AISeat >= 0，引擎将自动为 AI 座位完成选角并在行动阶段代为决策。
 func NewEngine(r *room.Room) *Engine {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Engine{
@@ -58,6 +64,8 @@ func NewEngine(r *room.Room) *Engine {
 		ctx:      ctx,
 		cancel:   cancel,
 		rng:      rand.New(rand.NewSource(time.Now().UnixNano())),
+		aiSeat:   r.AISeat,
+		aiCharID: r.AICharID,
 	}
 }
 
@@ -130,9 +138,36 @@ func (e *Engine) run() {
 // ════════════════════════════════════════════════════════════════
 
 // waitCharacterSelect 阻塞直到双方均发送 SelectCharacterReq。
+// 人机对战模式下，AI 的角色在此函数入口处自动完成选择，只需等待人类玩家确认。
 func (e *Engine) waitCharacterSelect() bool {
 	e.state.Phase = PhaseWaiting
 	selected := [2]bool{}
+
+	// 人机对战：自动为 AI 座位完成选角
+	if e.aiSeat >= 0 && e.aiCharID != "" {
+		inst, err := character.NewInstance(e.aiCharID)
+		if err == nil {
+			p := e.state.Players[e.aiSeat]
+			p.Char = inst
+			p.CharacterID = inst.Def.ID
+			p.MaxHP = inst.Def.MaxHP
+			p.HP = inst.Def.MaxHP
+			p.MaxEnergy = inst.Def.MaxEnergy
+			p.LibThreshold = inst.Def.LibThreshold
+			if inst.Def.Hooks != nil {
+				if inst.Def.Hooks.InitHP > 0 {
+					p.HP = inst.Def.Hooks.InitHP
+				}
+				if inst.Def.Hooks.InitEnergy > 0 {
+					p.Energy = inst.Def.Hooks.InitEnergy
+				}
+			}
+			selected[e.aiSeat] = true
+			slog.Info("AI character auto-selected", "seat", e.aiSeat, "char", e.aiCharID)
+		} else {
+			slog.Error("AI character not found, falling back to PvP wait", "charID", e.aiCharID, "err", err)
+		}
+	}
 
 	for !(selected[0] && selected[1]) {
 		select {
@@ -259,6 +294,17 @@ func (e *Engine) runAction() bool {
 	resetTimer()
 
 	for {
+		// AI 行动检查：若当前轮到 AI（行动或防御），同步执行后 continue
+		if e.aiSeat >= 0 {
+			if e.maybeRunAIAction() {
+				// AI 刚结束其回合（aiEndAction 设置了 ActiveSeat）→ 为人类重置倒计时
+				if !e.state.Players[e.state.ActiveSeat].ActionDone {
+					resetTimer()
+				}
+				continue
+			}
+		}
+
 		// 双方都结束行动
 		if e.state.Players[0].ActionDone && e.state.Players[1].ActionDone {
 			return true
@@ -268,7 +314,7 @@ func (e *Engine) runAction() bool {
 		case act := <-e.actionCh:
 			prevSeat := e.state.ActiveSeat
 			e.processAction(act)
-			// 行动权切换时重置倒计时
+			// 行动权切换时重置倒计时（仅对人类玩家；AI 在上面的检查中处理）
 			if e.state.ActiveSeat != prevSeat && !e.state.Players[e.state.ActiveSeat].ActionDone {
 				resetTimer()
 			}

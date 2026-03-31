@@ -105,6 +105,7 @@ func (h *Handler) RegisterAll(r *network.Router) {
 	r.Register(protocol.MsgLoginReq, h.handleLogin)
 	r.Register(protocol.MsgJoinQueueReq, h.handleJoinQueue)
 	r.Register(protocol.MsgLeaveQueueReq, h.handleLeaveQueue)
+	r.Register(protocol.MsgCreateAIGameReq, h.handleCreateAIGame)
 }
 
 // handleLogin 处理登录请求，支持首次登录和断线重连两种路径。
@@ -198,4 +199,40 @@ func (h *Handler) handleLeaveQueue(s *network.Session, data []byte) {
 		return
 	}
 	h.queue.Dequeue(p.ID)
+}
+
+// handleCreateAIGame 处理人机对战请求，即时创建房间，无需排队等待。
+// 玩家和 AI 的角色均由客户端在请求中指定。
+func (h *Handler) handleCreateAIGame(s *network.Session, data []byte) {
+	p := h.playerMgr.GetBySession(s.ID)
+	if p == nil {
+		s.Send(protocol.MsgErrorEv, protocol.MustEncode(protocol.ErrorEv{
+			Code: protocol.ErrCodeInvalidPhase, Message: "请先登录",
+		}))
+		return
+	}
+	if p.RoomID() != "" {
+		s.Send(protocol.MsgErrorEv, protocol.MustEncode(protocol.ErrorEv{
+			Code: protocol.ErrCodeInvalidPhase, Message: "已在对局中",
+		}))
+		return
+	}
+
+	req, err := protocol.Decode[protocol.CreateAIGameReq](data)
+	if err != nil || req.PlayerCharID == "" || req.AICharID == "" {
+		s.Send(protocol.MsgErrorEv, protocol.MustEncode(protocol.ErrorEv{
+			Code: protocol.ErrCodeInvalidPhase, Message: "无效的人机对战请求（需指定双方角色）",
+		}))
+		return
+	}
+
+	slog.Info("creating AI game", "playerID", p.ID, "playerChar", req.PlayerCharID, "aiChar", req.AICharID)
+
+	// 创建房间（内部广播 MatchFoundEv 给人类玩家，并触发引擎初始化钩子）
+	h.roomMgr.CreateAIRoom(p, req.AICharID)
+
+	// 人类玩家无需等待对方选角，直接发送角色选择请求即可；
+	// 服务端引擎会自动完成 AI 的选角，游戏随即开始。
+	// 客户端在收到 MatchFoundEv 后会自动发送 SelectCharacterReq(PlayerCharID)。
+	// 为了让流程与 PvP 一致，此处不做额外处理，由客户端正常走选角流程。
 }
