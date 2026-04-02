@@ -46,8 +46,11 @@ type PlayerView struct {
 	MaxEnergy   int        `json:"max_energy"`
 	Character   string     `json:"character"`    // 角色名，未公开时为 "???"（但自己永远知道自己的角色）
 	IsNearDeath bool       `json:"is_near_death"`
-	Hand        []CardView `json:"hand"`       // 手牌区，最多 8 张
-	SynthZone   []CardView `json:"synth_zone"` // 合成区，最多 4 张
+	Hand        []CardView     `json:"hand"`                  // 手牌区，最多 8 张
+	SynthZone   []CardView     `json:"synth_zone"`            // 合成区，最多 4 张
+	// ExtraInfo 存放角色特定的额外状态（如时空裂缝者的裂缝数量和产能）
+	// 不需要时为 nil，JSON 序列化会省略此字段
+	ExtraInfo   map[string]any `json:"extra_info,omitempty"`
 }
 
 // OpponentView 是玩家看到的对手的受限信息。
