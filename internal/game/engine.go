@@ -51,6 +51,9 @@ type Engine struct {
 	// aiCharID 是 AI 预选的角色 ID，waitCharacterSelect 会自动完成 AI 的选角。
 	aiSeat   int
 	aiCharID string
+
+	// onDone 在引擎 goroutine 退出前调用，用于通知外部清理房间/引擎注册表。
+	onDone func()
 }
 
 // NewEngine 创建游戏引擎，绑定到指定房间。
@@ -94,6 +97,11 @@ func (e *Engine) SubmitAction(seat int, msgID uint16, payload []byte) {
 
 func (e *Engine) run() {
 	defer e.Stop()
+	defer func() {
+		if e.onDone != nil {
+			e.onDone()
+		}
+	}()
 	slog.Info("engine started", "gameID", e.state.GameID)
 
 	// 步骤 1：等待双方选择角色

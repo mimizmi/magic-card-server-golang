@@ -56,6 +56,11 @@ func (h *Handler) OnRoomCreated(r *room.Room) {
 	eng := NewEngine(r)
 	h.engines.Store(r.ID, eng)
 	slog.Info("engine created", "roomID", r.ID)
+	eng.onDone = func() {
+		h.engines.Delete(r.ID)
+		h.roomMgr.Remove(r.ID)
+		slog.Info("engine cleanup", "roomID", r.ID)
+	}
 	eng.Start()
 }
 
