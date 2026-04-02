@@ -22,7 +22,8 @@ import (
 //   - Player 是"这个玩家"，断线后仍然存在一段时间（等待重连）
 //
 // 这个分离让断线重连成为可能：
-//   旧 Session 断开 → Player 标记 offline → 新 Session 连入 → Player 重绑 Session
+//
+//	旧 Session 断开 → Player 标记 offline → 新 Session 连入 → Player 重绑 Session
 type Player struct {
 	ID   string
 	Name string
@@ -91,9 +92,10 @@ const reconnectTTL = 3 * time.Minute
 // Manager 负责玩家的注册、Session 绑定与断线重连。
 //
 // 内部维护三张表：
-//   players    playerID  → *Player  （全量，包含离线玩家）
-//   bySession  sessionID → *Player  （当前在线的 Session → Player 映射）
-//   byToken    token     → reconnectEntry  （断线重连凭证）
+//
+//	players    playerID  → *Player  （全量，包含离线玩家）
+//	bySession  sessionID → *Player  （当前在线的 Session → Player 映射）
+//	byToken    token     → reconnectEntry  （断线重连凭证）
 type Manager struct {
 	players   sync.Map // playerID  → *Player
 	bySession sync.Map // sessionID → *Player
@@ -133,8 +135,18 @@ func (m *Manager) Register(name string, sess *network.Session) (p *Player, token
 	m.byToken.Store(token, reconnectEntry{player: p, expiresAt: time.Now().Add(reconnectTTL)})
 
 	// 注入断线回调：Session 关闭时，Player 标记离线并通知上层
+	// Session guard: only trigger full disconnect if this session is still the player's current session.
+	// If a reconnect already happened, only clean up the stale bySession map entry.
 	sess.OnClose = func() {
-		m.handleDisconnect(sess.ID, p)
+		p.mu.Lock()
+		current := p.session
+		p.mu.Unlock()
+		if current == sess {
+			m.handleDisconnect(sess.ID, p)
+		} else {
+			// Stale session closing after reconnect; only clean map entry
+			m.bySession.Delete(sess.ID)
+		}
 	}
 
 	slog.Info("player registered", "playerID", p.ID, "name", name, "sessionID", sess.ID)
@@ -155,14 +167,32 @@ func (m *Manager) Reconnect(token string, sess *network.Session) *Player {
 	}
 
 	p := entry.player
-	p.setSession(sess)
+
+	// Delete old session mapping before rebinding.
+	// We directly assign p.session under the lock (instead of calling p.setSession)
+	// to also read oldSess atomically in the same critical section, avoiding a TOCTOU race.
+	p.mu.Lock()
+	oldSess := p.session
+	p.session = sess
+	p.mu.Unlock()
+	if oldSess != nil {
+		m.bySession.Delete(oldSess.ID)
+	}
 	m.bySession.Store(sess.ID, p)
 
 	// 延长 token 有效期（重连成功后继续保留，以防再次掉线）
 	m.byToken.Store(token, reconnectEntry{player: p, expiresAt: time.Now().Add(reconnectTTL)})
 
+	// Session guard: only disconnect if this session is still active when it closes.
 	sess.OnClose = func() {
-		m.handleDisconnect(sess.ID, p)
+		p.mu.Lock()
+		current := p.session
+		p.mu.Unlock()
+		if current == sess {
+			m.handleDisconnect(sess.ID, p)
+		} else {
+			m.bySession.Delete(sess.ID)
+		}
 	}
 
 	slog.Info("player reconnected", "playerID", p.ID, "name", p.Name, "sessionID", sess.ID)
