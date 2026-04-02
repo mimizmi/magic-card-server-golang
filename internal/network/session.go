@@ -21,6 +21,12 @@ const (
 	// pongTimeout 超过此时间未收到 Pong，判定连接已死。
 	// 必须 > pingInterval，给客户端足够的响应时间。
 	pongTimeout = 35 * time.Second
+
+	// rateLimitPerSec 每秒允许的最大消息数（不含 Pong）。
+	// 卡牌游戏人类操作通常 1-3 msg/s，30 足够宽裕。
+	rateLimitPerSec = 30
+	// rateLimitRefillInterval 令牌补充间隔。
+	rateLimitRefillInterval = time.Second / time.Duration(rateLimitPerSec)
 )
 
 // 心跳消息 ID 约定（客户端需遵守相同约定）
@@ -32,6 +38,39 @@ const (
 // 全局会话 ID 计数器，使用原子操作保证并发安全且不重复
 var sessionIDCounter atomic.Uint64
 
+// tokenBucket 是一个简单的令牌桶限速器（无外部依赖）。
+// 仅在 readLoop 中单线程使用，无需加锁。
+type tokenBucket struct {
+	tokens   int
+	max      int
+	lastFill time.Time
+	interval time.Duration
+}
+
+func newTokenBucket(maxTokens int, interval time.Duration) *tokenBucket {
+	return &tokenBucket{
+		tokens:   maxTokens,
+		max:      maxTokens,
+		lastFill: time.Now(),
+		interval: interval,
+	}
+}
+
+func (tb *tokenBucket) allow() bool {
+	now := time.Now()
+	elapsed := now.Sub(tb.lastFill)
+	refill := int(elapsed / tb.interval)
+	if refill > 0 {
+		tb.tokens = min(tb.max, tb.tokens+refill)
+		tb.lastFill = tb.lastFill.Add(time.Duration(refill) * tb.interval)
+	}
+	if tb.tokens <= 0 {
+		return false
+	}
+	tb.tokens--
+	return true
+}
+
 // Session 代表一个客户端的长连接会话。
 //
 // 并发模型：
@@ -40,9 +79,10 @@ var sessionIDCounter atomic.Uint64
 //   - heartbeatLoop goroutine：定时发 Ping，检查 Pong 超时
 //
 // 为什么写操作需要单独的 goroutine？
-//   net.Conn.Write 不是并发安全的。如果多个 goroutine 同时写同一个连接，
-//   数据会交叉损坏。通过 sendCh channel，我们把所有写操作序列化到一个
-//   goroutine，其他任何地方只需往 channel 塞数据，不直接碰 conn。
+//
+//	net.Conn.Write 不是并发安全的。如果多个 goroutine 同时写同一个连接，
+//	数据会交叉损坏。通过 sendCh channel，我们把所有写操作序列化到一个
+//	goroutine，其他任何地方只需往 channel 塞数据，不直接碰 conn。
 type Session struct {
 	// ID 是会话唯一标识，创建后不可变，可在多 goroutine 中安全读取
 	ID string
@@ -127,6 +167,7 @@ func (s *Session) run() {
 // readLoop 持续从连接读取帧，分发给 router 处理。
 // 只有这一个地方读 conn，不存在并发读。
 func (s *Session) readLoop() {
+	limiter := newTokenBucket(rateLimitPerSec, rateLimitRefillInterval)
 	for {
 		frame, err := ReadFrame(s.conn)
 		if err != nil {
@@ -135,12 +176,18 @@ func (s *Session) readLoop() {
 			return
 		}
 
-		// Pong 是心跳响应，直接在这里处理，不走 router
+		// Pong 是心跳响应，直接在这里处理，不走 router，不计入限速
 		if frame.MsgID == MsgIDPong {
 			s.mu.Lock()
 			s.lastPongAt = time.Now()
 			s.mu.Unlock()
 			continue
+		}
+
+		// 速率限制：超过 30 msg/s 直接关闭连接
+		if !limiter.allow() {
+			slog.Warn("rate limit exceeded, closing session", "sessionID", s.ID)
+			return
 		}
 
 		s.router.dispatch(s, frame.MsgID, frame.Payload)
