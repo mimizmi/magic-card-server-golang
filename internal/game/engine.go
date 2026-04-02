@@ -805,6 +805,9 @@ func (e *Engine) runCleanup() bool {
 		if p.HP < 40 && !p.BlessingUsed {
 			p.BlessingUsed = true
 			second := e.assignBlessingChar(seat)
+			if second == nil {
+				continue // 所有候选角色实例化失败，跳过赐福
+			}
 			p.SecondChar = second
 			slog.Info("blessing triggered",
 				"seat", seat, "hp", p.HP,
@@ -884,9 +887,20 @@ func (e *Engine) assignBlessingChar(seat int) *character.CharInstance {
 		// 极端情况：只有一个角色，随机返回任意（不应发生）
 		candidates = all
 	}
-	chosen := candidates[e.rng.Intn(len(candidates))]
-	inst, _ := character.NewInstance(chosen.ID)
-	return inst
+	// 随机选取，若实例化失败则逐个尝试
+	e.rng.Shuffle(len(candidates), func(i, j int) {
+		candidates[i], candidates[j] = candidates[j], candidates[i]
+	})
+	for _, def := range candidates {
+		inst, err := character.NewInstance(def.ID)
+		if err != nil {
+			slog.Error("blessing char instantiation failed", "charID", def.ID, "err", err)
+			continue
+		}
+		return inst
+	}
+	slog.Error("all blessing candidates failed", "seat", seat)
+	return nil
 }
 
 // fieldSynthOpts 将当前场地效果转换为合成配置。
