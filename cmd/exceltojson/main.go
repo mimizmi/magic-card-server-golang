@@ -1,5 +1,11 @@
 // cmd/exceltojson 是一个小工具，将策划填写的 Excel 配置表导出为服务端/客户端使用的 JSON 数据文件。
 //
+// Excel 工作表结构（全中文，策划友好）：
+//   - 角色属性：基础数值（角色名称、角色ID、最大生命……）
+//   - 角色技能：每个技能一行（角色名称、技能等级、技能名称……）
+//   - 特殊机制：hooks参数（角色名称、参数名称、参数值）
+//   - 场地效果：场地配置（场地名称、场地ID……）
+//
 // 用法：
 //
 //	go run ./cmd/exceltojson -i data/游戏配置表.xlsx -o data/
@@ -33,20 +39,37 @@ func main() {
 	}
 	defer f.Close()
 
-	// 导出角色表
-	chars, err := parseCharacters(f)
+	// 1) 解析角色属性
+	charMap, charOrder, err := parseCharAttrs(f)
 	if err != nil {
-		log.Fatalf("解析[角色]表失败: %v", err)
+		log.Fatalf("解析[角色属性]失败: %v", err)
 	}
+
+	// 2) 解析角色技能，挂到对应角色上
+	if err := parseCharSkills(f, charMap); err != nil {
+		log.Fatalf("解析[角色技能]失败: %v", err)
+	}
+
+	// 3) 解析特殊机制，挂到对应角色上
+	if err := parseHooksConfig(f, charMap); err != nil {
+		log.Fatalf("解析[特殊机制]失败: %v", err)
+	}
+
+	// 按原始顺序输出
+	chars := make([]map[string]any, 0, len(charOrder))
+	for _, name := range charOrder {
+		chars = append(chars, charMap[name])
+	}
+
 	if err := writeJSON(filepath.Join(*output, "characters.json"), chars); err != nil {
 		log.Fatalf("写入 characters.json 失败: %v", err)
 	}
 	fmt.Printf("✓ 已导出 %d 个角色 → %s\n", len(chars), filepath.Join(*output, "characters.json"))
 
-	// 导出场地效果表
+	// 4) 解析场地效果
 	fields, err := parseFields(f)
 	if err != nil {
-		log.Fatalf("解析[场地效果]表失败: %v", err)
+		log.Fatalf("解析[场地效果]失败: %v", err)
 	}
 	if err := writeJSON(filepath.Join(*output, "fields.json"), fields); err != nil {
 		log.Fatalf("写入 fields.json 失败: %v", err)
@@ -55,135 +78,345 @@ func main() {
 }
 
 // ════════════════════════════════════════════════════════════════
-//  角色表解析
+//  Sheet 1: 角色属性
 // ════════════════════════════════════════════════════════════════
+//
+// 列: A:角色名称 B:角色ID C:最大生命 D:最大能量 E:解放阈值
+//     F:解放方式 G:被动·攻击加伤 H:被动·受击减伤 I:被动·濒死拦截
+// 第1行=表头，第2行=填写说明，数据从第3行开始
 
-// Excel "角色" 表的列顺序（A-Z）：
-// A: id
-// B: name
-// C: max_hp
-// D: max_energy
-// E: lib_threshold
-// F: manual_lib (是/否)
-// G: passive_bonus_outgoing
-// H: passive_incoming_reduction
-// I: passive_intercept_near_death (是/否)
-// J: normal_name
-// K: normal_energy_cost
-// L: normal_damage
-// M: normal_heal
-// N: normal_energy_gain
-// O: normal_draw
-// P: normal_self_damage
-// Q: normal_desc
-// R: enhanced_name
-// S: enhanced_energy_cost
-// T: enhanced_damage
-// U: enhanced_heal
-// V: enhanced_energy_gain
-// W: enhanced_draw
-// X: enhanced_self_damage
-// Y: enhanced_desc
-// Z: lib_name
-// AA: lib_energy_cost
-// AB: lib_damage
-// AC: lib_heal
-// AD: lib_energy_gain
-// AE: lib_draw
-// AF: lib_self_damage
-// AG: lib_desc
-// AH: hooks_config (JSON字符串，可选)
+func parseCharAttrs(f *excelize.File) (map[string]map[string]any, []string, error) {
+	const sheet = "角色属性"
+	rows, err := f.GetRows(sheet)
+	if err != nil {
+		return nil, nil, fmt.Errorf("读取工作表[%s]: %w", sheet, err)
+	}
+	if len(rows) < 3 {
+		return nil, nil, fmt.Errorf("工作表[%s]至少需要表头+说明行+1行数据", sheet)
+	}
 
-func parseCharacters(f *excelize.File) ([]map[string]any, error) {
-	const sheet = "角色"
+	charMap := make(map[string]map[string]any)
+	var order []string
+
+	for _, row := range rows[2:] { // 跳过表头+说明行
+		name := getCell(row, 0)
+		if name == "" {
+			continue
+		}
+		id := getCell(row, 1)
+		if id == "" {
+			continue
+		}
+
+		libMode := getCell(row, 5)
+		manualLib := false
+		libThreshold := getCellInt(row, 4)
+		switch libMode {
+		case "手动":
+			manualLib = true
+		case "自动":
+			manualLib = false
+		case "无", "":
+			manualLib = false
+			libThreshold = 0
+		}
+
+		ch := map[string]any{
+			"id":            id,
+			"name":          name,
+			"max_hp":        getCellInt(row, 2),
+			"max_energy":    getCellInt(row, 3),
+			"lib_threshold": libThreshold,
+			"manual_lib":    manualLib,
+		}
+
+		// 被动
+		passive := map[string]any{}
+		if v := getCellInt(row, 6); v != 0 {
+			passive["bonus_outgoing"] = v
+		}
+		if v := getCellInt(row, 7); v != 0 {
+			passive["incoming_reduction"] = v
+		}
+		if getCellBool(row, 8) {
+			passive["intercept_near_death"] = true
+		}
+		ch["passive"] = passive
+
+		// 初始化空技能（后续由 Sheet2 填充）
+		ch["normal"] = map[string]any{}
+		ch["enhanced"] = map[string]any{}
+		ch["lib"] = map[string]any{}
+
+		charMap[name] = ch
+		order = append(order, name)
+	}
+
+	return charMap, order, nil
+}
+
+// ════════════════════════════════════════════════════════════════
+//  Sheet 2: 角色技能
+// ════════════════════════════════════════════════════════════════
+//
+// 列: A:角色名称 B:技能等级(普通/强化/解放) C:技能名称 D:能量消耗
+//     E:造成伤害 F:回复生命 G:获得能量 H:摸牌数 I:自伤 J:技能描述
+// 第1行=表头，第2行=填写说明，数据从第3行开始
+
+func parseCharSkills(f *excelize.File, charMap map[string]map[string]any) error {
+	const sheet = "角色技能"
+	rows, err := f.GetRows(sheet)
+	if err != nil {
+		return fmt.Errorf("读取工作表[%s]: %w", sheet, err)
+	}
+
+	// 技能等级 → JSON key 映射
+	levelMap := map[string]string{
+		"普通": "normal",
+		"强化": "enhanced",
+		"解放": "lib",
+	}
+
+	for i, row := range rows[2:] { // 跳过表头+说明行
+		name := getCell(row, 0)
+		if name == "" {
+			continue // 空行或分隔行
+		}
+		level := getCell(row, 1)
+		jsonKey, ok := levelMap[level]
+		if !ok {
+			continue // 无效等级，跳过
+		}
+
+		ch, exists := charMap[name]
+		if !exists {
+			return fmt.Errorf("第%d行: 角色[%s]在[角色属性]表中不存在", i+3, name)
+		}
+
+		skill := buildSkill(
+			getCell(row, 2),    // 技能名称
+			getCellInt(row, 3), // 能量消耗
+			getCellInt(row, 4), // 造成伤害
+			getCellInt(row, 5), // 回复生命
+			getCellInt(row, 6), // 获得能量
+			getCellInt(row, 7), // 摸牌数
+			getCellInt(row, 8), // 自伤
+			getCell(row, 9),    // 技能描述
+		)
+
+		ch[jsonKey] = skill
+	}
+
+	return nil
+}
+
+// ════════════════════════════════════════════════════════════════
+//  Sheet 3: 特殊机制
+// ════════════════════════════════════════════════════════════════
+//
+// 列: A:角色名称 B:参数名称 C:参数值 D:说明
+// 第1行=表头，数据从第2行开始
+//
+// 中文参数名 → 英文JSON key 的映射关系由 hooksParamMap 定义。
+
+// hooksParamDef 定义参数的类型
+type hooksParamDef struct {
+	jsonKey  string
+	dataType string // "int", "bool", "int_list"
+}
+
+var hooksParamMap = map[string]hooksParamDef{
+	// 时空裂缝者
+	"HP与能量共享":  {jsonKey: "hp_energy_shared", dataType: "bool"},
+	"初始生命值":    {jsonKey: "init_hp", dataType: "int"},
+	"初始能量值":    {jsonKey: "init_energy", dataType: "int"},
+	"裂缝基础能量":   {jsonKey: "default_rift_bonus", dataType: "int"},
+	"裂缝能量递增":   {jsonKey: "rift_bonus_increment", dataType: "int"},
+	"普通技能消耗":   {jsonKey: "normal_skill_cost", dataType: "int"},
+	"强化技能消耗":   {jsonKey: "enhanced_skill_cost", dataType: "int"},
+	"强化技能点数阈值": {jsonKey: "enhanced_skill_pts_threshold", dataType: "int"},
+	"超能解放能量阈值": {jsonKey: "liberation_energy_threshold", dataType: "int"},
+	// 万能者
+	"全牌攻击化":   {jsonKey: "all_cards_as_attack", dataType: "bool"},
+	"阶段伤害阈值":  {jsonKey: "phase_thresholds", dataType: "int_list"},
+	"阶段1攻击加成": {jsonKey: "phase1_attack_bonus", dataType: "int"},
+	"阶段2牌面加成": {jsonKey: "phase2_card_bonus", dataType: "int"},
+	"阶段3攻击倍率": {jsonKey: "phase3_attack_multiplier", dataType: "int"},
+	// 血魔
+	"受伤牌面加成阈值": {jsonKey: "dmg_received_threshold", dataType: "int"},
+	"受伤后牌面加成":  {jsonKey: "dmg_received_card_bonus", dataType: "int"},
+	"吸血伤害阈值":   {jsonKey: "lifesteal_damage_threshold", dataType: "int"},
+	"吸血激活点数":   {jsonKey: "lifesteal_activate_pts", dataType: "int"},
+	"强化技能攻击加成": {jsonKey: "enhanced_atk_bonus", dataType: "int"},
+	"强化技能自伤":   {jsonKey: "enhanced_self_damage", dataType: "int"},
+	"普通技能自伤":   {jsonKey: "normal_self_damage", dataType: "int"},
+	"普通技能摸牌数":  {jsonKey: "normal_draw_cards", dataType: "int"},
+}
+
+// "强化技能点数阈值" 在血魔中对应 enhanced_pts_threshold 而非 enhanced_skill_pts_threshold
+// 需要按角色区分的参数映射
+var hooksParamOverrides = map[string]map[string]string{
+	"血魔": {
+		"强化技能点数阈值": "enhanced_pts_threshold",
+	},
+}
+
+func parseHooksConfig(f *excelize.File, charMap map[string]map[string]any) error {
+	const sheet = "特殊机制"
+	rows, err := f.GetRows(sheet)
+	if err != nil {
+		return fmt.Errorf("读取工作表[%s]: %w", sheet, err)
+	}
+
+	// 收集每个角色的 hooks_config
+	hooksConfigs := make(map[string]map[string]any)
+
+	for i, row := range rows[1:] { // 跳过表头
+		charName := getCell(row, 0)
+		paramName := getCell(row, 1)
+		paramValue := getCell(row, 2)
+
+		if charName == "" || paramName == "" {
+			continue // 空行或分隔行
+		}
+
+		def, ok := hooksParamMap[paramName]
+		if !ok {
+			return fmt.Errorf("第%d行: 未知参数名[%s]", i+2, paramName)
+		}
+
+		// 检查角色特定的key覆盖
+		jsonKey := def.jsonKey
+		if overrides, ok := hooksParamOverrides[charName]; ok {
+			if override, ok := overrides[paramName]; ok {
+				jsonKey = override
+			}
+		}
+
+		if _, exists := charMap[charName]; !exists {
+			return fmt.Errorf("第%d行: 角色[%s]在[角色属性]表中不存在", i+2, charName)
+		}
+
+		if hooksConfigs[charName] == nil {
+			hooksConfigs[charName] = make(map[string]any)
+		}
+
+		// 按类型解析值
+		switch def.dataType {
+		case "int":
+			n, err := strconv.Atoi(strings.TrimSpace(paramValue))
+			if err != nil {
+				return fmt.Errorf("第%d行: 参数[%s]应为整数，实际值[%s]", i+2, paramName, paramValue)
+			}
+			hooksConfigs[charName][jsonKey] = n
+		case "bool":
+			hooksConfigs[charName][jsonKey] = paramValue == "是" || paramValue == "true" || paramValue == "TRUE" || paramValue == "1"
+		case "int_list":
+			parts := strings.Split(paramValue, ",")
+			var nums []int
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if p == "" {
+					continue
+				}
+				n, err := strconv.Atoi(p)
+				if err != nil {
+					return fmt.Errorf("第%d行: 参数[%s]应为逗号分隔的整数列表，实际值[%s]", i+2, paramName, paramValue)
+				}
+				nums = append(nums, n)
+			}
+			hooksConfigs[charName][jsonKey] = nums
+		}
+	}
+
+	// 挂载到角色数据上
+	for charName, hc := range hooksConfigs {
+		charMap[charName]["hooks_config"] = hc
+	}
+
+	return nil
+}
+
+// ════════════════════════════════════════════════════════════════
+//  Sheet 4: 场地效果
+// ════════════════════════════════════════════════════════════════
+//
+// 列: A:场地名称 B:场地ID C:虚幻加成 D:允许同系合成
+//     E:轮回规则 F:隐藏摸牌 G:攻击加成 H:濒死吸取
+// 第1行=表头，第2行=填写说明，数据从第3行开始
+
+func parseFields(f *excelize.File) ([]map[string]any, error) {
+	const sheet = "场地效果"
 	rows, err := f.GetRows(sheet)
 	if err != nil {
 		return nil, fmt.Errorf("读取工作表[%s]: %w", sheet, err)
 	}
-	if len(rows) < 2 {
-		return nil, fmt.Errorf("工作表[%s]至少需要表头+1行数据", sheet)
+	if len(rows) < 3 {
+		return nil, fmt.Errorf("工作表[%s]至少需要表头+说明行+1行数据", sheet)
 	}
 
 	var result []map[string]any
-	for i, row := range rows[1:] { // 跳过表头
-		if len(row) == 0 || strings.TrimSpace(row[0]) == "" {
-			continue // 跳过空行
+	for _, row := range rows[2:] { // 跳过表头+说明行
+		name := getCell(row, 0)
+		if name == "" {
+			continue
 		}
-		ch, err := rowToCharacter(row, i+2) // i+2 = Excel行号（1-based + 表头）
-		if err != nil {
-			return nil, fmt.Errorf("第%d行: %w", i+2, err)
+		id := getCell(row, 1)
+		if id == "" {
+			continue
 		}
-		result = append(result, ch)
+
+		fe := map[string]any{
+			"id":   id,
+			"name": name,
+		}
+		if getCellBool(row, 2) {
+			fe["illusion_bonus"] = true
+		}
+		if getCellBool(row, 3) {
+			fe["allow_same_type"] = true
+		}
+		if v := getCellInt(row, 4); v != 0 {
+			fe["reincarn_rule"] = v
+		}
+		if getCellBool(row, 5) {
+			fe["hide_drawn_cards"] = true
+		}
+		if v := getCellInt(row, 6); v != 0 {
+			fe["bonus_attack"] = v
+		}
+		if v := getCellInt(row, 7); v != 0 {
+			fe["near_death_drain"] = v
+		}
+
+		result = append(result, fe)
 	}
 	return result, nil
 }
 
-func rowToCharacter(row []string, lineNum int) (map[string]any, error) {
-	get := func(col int) string {
-		if col < len(row) {
-			return strings.TrimSpace(row[col])
-		}
-		return ""
-	}
-	getInt := func(col int) int {
-		s := get(col)
-		if s == "" {
-			return 0
-		}
-		n, _ := strconv.Atoi(s)
-		return n
-	}
-	getBool := func(col int) bool {
-		s := get(col)
-		return s == "是" || s == "true" || s == "TRUE" || s == "1"
-	}
+// ════════════════════════════════════════════════════════════════
+//  工具函数
+// ════════════════════════════════════════════════════════════════
 
-	id := get(0)
-	if id == "" {
-		return nil, fmt.Errorf("id 不能为空")
+func getCell(row []string, col int) string {
+	if col < len(row) {
+		return strings.TrimSpace(row[col])
 	}
+	return ""
+}
 
-	ch := map[string]any{
-		"id":            id,
-		"name":          get(1),
-		"max_hp":        getInt(2),
-		"max_energy":    getInt(3),
-		"lib_threshold": getInt(4),
-		"manual_lib":    getBool(5),
+func getCellInt(row []string, col int) int {
+	s := getCell(row, col)
+	if s == "" {
+		return 0
 	}
+	n, _ := strconv.Atoi(s)
+	return n
+}
 
-	// passive
-	passive := map[string]any{}
-	if v := getInt(6); v != 0 {
-		passive["bonus_outgoing"] = v
-	}
-	if v := getInt(7); v != 0 {
-		passive["incoming_reduction"] = v
-	}
-	if getBool(8) {
-		passive["intercept_near_death"] = true
-	}
-	ch["passive"] = passive
-
-	// normal skill (J-Q, col 9-16)
-	ch["normal"] = buildSkill(get(9), getInt(10), getInt(11), getInt(12), getInt(13), getInt(14), getInt(15), get(16))
-
-	// enhanced skill (R-Y, col 17-24)
-	ch["enhanced"] = buildSkill(get(17), getInt(18), getInt(19), getInt(20), getInt(21), getInt(22), getInt(23), get(24))
-
-	// lib skill (Z-AG, col 25-32)
-	ch["lib"] = buildSkill(get(25), getInt(26), getInt(27), getInt(28), getInt(29), getInt(30), getInt(31), get(32))
-
-	// hooks_config (AH, col 33) — 可选JSON字符串
-	if hc := get(33); hc != "" {
-		var hooksConfig map[string]any
-		if err := json.Unmarshal([]byte(hc), &hooksConfig); err != nil {
-			return nil, fmt.Errorf("hooks_config JSON 解析失败 (行%d): %w", lineNum, err)
-		}
-		ch["hooks_config"] = hooksConfig
-	}
-
-	return ch, nil
+func getCellBool(row []string, col int) bool {
+	s := getCell(row, col)
+	return s == "是" || s == "true" || s == "TRUE" || s == "1"
 }
 
 func buildSkill(name string, cost, damage, heal, energy, draw, selfDmg int, desc string) map[string]any {
@@ -218,92 +451,6 @@ func buildSkill(name string, cost, damage, heal, energy, draw, selfDmg int, desc
 	}
 	return skill
 }
-
-// ════════════════════════════════════════════════════════════════
-//  场地效果表解析
-// ════════════════════════════════════════════════════════════════
-
-// Excel "场地效果" 表的列顺序（A-G）：
-// A: id
-// B: name
-// C: illusion_bonus (是/否)
-// D: allow_same_type (是/否)
-// E: reincarn_rule (0/1/2)
-// F: hide_drawn_cards (是/否)
-// G: bonus_attack
-// H: near_death_drain
-
-func parseFields(f *excelize.File) ([]map[string]any, error) {
-	const sheet = "场地效果"
-	rows, err := f.GetRows(sheet)
-	if err != nil {
-		return nil, fmt.Errorf("读取工作表[%s]: %w", sheet, err)
-	}
-	if len(rows) < 2 {
-		return nil, fmt.Errorf("工作表[%s]至少需要表头+1行数据", sheet)
-	}
-
-	var result []map[string]any
-	for i, row := range rows[1:] {
-		if len(row) == 0 || strings.TrimSpace(row[0]) == "" {
-			continue
-		}
-		get := func(col int) string {
-			if col < len(row) {
-				return strings.TrimSpace(row[col])
-			}
-			return ""
-		}
-		getInt := func(col int) int {
-			s := get(col)
-			if s == "" {
-				return 0
-			}
-			n, _ := strconv.Atoi(s)
-			return n
-		}
-		getBool := func(col int) bool {
-			s := get(col)
-			return s == "是" || s == "true" || s == "TRUE" || s == "1"
-		}
-
-		id := get(0)
-		if id == "" {
-			continue
-		}
-
-		fe := map[string]any{
-			"id":   id,
-			"name": get(1),
-		}
-		if getBool(2) {
-			fe["illusion_bonus"] = true
-		}
-		if getBool(3) {
-			fe["allow_same_type"] = true
-		}
-		if v := getInt(4); v != 0 {
-			fe["reincarn_rule"] = v
-		}
-		if getBool(5) {
-			fe["hide_drawn_cards"] = true
-		}
-		if v := getInt(6); v != 0 {
-			fe["bonus_attack"] = v
-		}
-		if v := getInt(7); v != 0 {
-			fe["near_death_drain"] = v
-		}
-
-		result = append(result, fe)
-		_ = i // suppress unused
-	}
-	return result, nil
-}
-
-// ════════════════════════════════════════════════════════════════
-//  工具函数
-// ════════════════════════════════════════════════════════════════
 
 func writeJSON(path string, data any) error {
 	out, err := json.MarshalIndent(data, "", "  ")
