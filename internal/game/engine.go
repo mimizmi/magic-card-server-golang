@@ -569,7 +569,20 @@ func (e *Engine) handleSynthesize(seat int, payload []byte) {
 
 	opts := e.fieldSynthOpts()
 
-	result, err := e.state.Players[seat].Hand.SynthesizeCards(
+	// 角色被动：合成时也使用修正后的牌面点数（如血魔 +3、万能者阶段 +2）
+	p := e.state.Players[seat]
+	if p.Char != nil && p.Char.Def.Hooks != nil && p.Char.Def.Hooks.ModifyCardPoints != nil {
+		hooks := p.Char.Def.Hooks
+		es := p.Char.ExtraState
+		opts.PointsModifier = func(pts int, c *card.Card) int {
+			if c.CardType == card.TypeAttack || hooks.AllCardsAsAttack {
+				return hooks.ModifyCardPoints(pts, es)
+			}
+			return pts
+		}
+	}
+
+	result, err := p.Hand.SynthesizeCards(
 		req.Zone1, req.Slot1,
 		req.Zone2, req.Slot2,
 		opts,

@@ -39,6 +39,10 @@ type SynthesisOpts struct {
 
 	// AllowSameType：混沌之域 场地效果——允许同功能牌型（如攻击+攻击）合成。
 	AllowSameType bool
+
+	// PointsModifier 在合成计算前修正牌面点数（角色被动，如血魔 +3、万能者阶段 +2）。
+	// 为 nil 时使用原始点数。
+	PointsModifier func(pts int, c *Card) int
 }
 
 // DefaultOpts 返回无场地效果时的标准合成选项。
@@ -133,14 +137,22 @@ func Combine(base, ingredient *Card, opts SynthesisOpts) (*Card, error) {
 
 // calcPoints 计算合成点数，不含上限截断。
 func calcPoints(base, ingredient *Card, opts SynthesisOpts) int {
+	// 应用角色被动的点数修正
+	basePts := base.Points
+	ingrPts := ingredient.Points
+	if opts.PointsModifier != nil {
+		basePts = opts.PointsModifier(basePts, base)
+		ingrPts = opts.PointsModifier(ingrPts, ingredient)
+	}
+
 	// ── 场地效果：轮回之境·实 ─────────────────────────────────
 	// 只要有一张是轮回牌，结果等于轮回牌自身的点数。
 	if opts.ReincarnationRule == ReincarnationAsBase {
 		if base.SubFaction == SubReincarnation {
-			return base.Points
+			return basePts
 		}
 		if ingredient.SubFaction == SubReincarnation {
-			return ingredient.Points
+			return ingrPts
 		}
 	}
 
@@ -148,18 +160,18 @@ func calcPoints(base, ingredient *Card, opts SynthesisOpts) int {
 	// 只要有一张是轮回牌，结果等于非轮回牌的点数。
 	if opts.ReincarnationRule == ReincarnationAsOther {
 		if base.SubFaction == SubReincarnation {
-			return ingredient.Points
+			return ingrPts
 		}
 		if ingredient.SubFaction == SubReincarnation {
-			return base.Points
+			return basePts
 		}
 	}
 
 	// ── 标准合成规则 ───────────────────────────────────────────
 	if base.SubFaction.Major() == ingredient.SubFaction.Major() {
 		// 同大系（梦幻+梦幻 or 重回+重回）→ 点数相乘
-		return base.Points * ingredient.Points
+		return basePts * ingrPts
 	}
 	// 不同大系（梦幻+重回）→ 点数相加
-	return base.Points + ingredient.Points
+	return basePts + ingrPts
 }
