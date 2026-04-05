@@ -2,6 +2,7 @@ package matchmaking
 
 import (
 	"log/slog"
+	"math/rand"
 	"sync"
 
 	"echo/internal/game/character"
@@ -27,11 +28,12 @@ type Queue struct {
 	mu      sync.Mutex
 	waiting []*player.Player
 	roomMgr *room.Manager
+	rng     *rand.Rand
 }
 
 // NewQueue 创建匹配队列。
 func NewQueue(roomMgr *room.Manager) *Queue {
-	return &Queue{roomMgr: roomMgr}
+	return &Queue{roomMgr: roomMgr, rng: rand.New(rand.NewSource(rand.Int63()))}
 }
 
 // Enqueue 将玩家加入等待队列，并尝试立即匹配。
@@ -77,6 +79,11 @@ func (q *Queue) tryMatch() {
 	p0 := q.waiting[0]
 	p1 := q.waiting[1]
 	q.waiting = q.waiting[2:]
+
+	// 随机决定先后手，避免先加入队列的玩家永远先手
+	if q.rng.Intn(2) == 1 {
+		p0, p1 = p1, p0
+	}
 
 	slog.Info("match found", "p0", p0.ID, "p1", p1.ID)
 
