@@ -25,6 +25,8 @@ import (
 	"strconv"
 	"strings"
 
+	"echo/internal/excelmap"
+
 	"github.com/xuri/excelize/v2"
 )
 
@@ -217,69 +219,8 @@ func parseCharSkills(f *excelize.File, charMap map[string]map[string]any) error 
 // 列: A:角色名称 B:参数名称 C:参数值 D:说明
 // 第1行=表头，数据从第2行开始
 //
-// 中文参数名 → 英文JSON key 的映射关系由 hooksParamMap 定义。
-
-// hooksParamDef 定义参数的类型
-type hooksParamDef struct {
-	jsonKey  string
-	dataType string // "int", "bool", "int_list"
-}
-
-var hooksParamMap = map[string]hooksParamDef{
-	// 时空裂缝者
-	"HP与能量共享":  {jsonKey: "hp_energy_shared", dataType: "bool"},
-	"初始生命值":    {jsonKey: "init_hp", dataType: "int"},
-	"初始能量值":    {jsonKey: "init_energy", dataType: "int"},
-	"裂缝基础能量":   {jsonKey: "default_rift_bonus", dataType: "int"},
-	"裂缝能量递增":   {jsonKey: "rift_bonus_increment", dataType: "int"},
-	"普通技能消耗":   {jsonKey: "normal_skill_cost", dataType: "int"},
-	"强化技能消耗":   {jsonKey: "enhanced_skill_cost", dataType: "int"},
-	"强化技能点数阈值": {jsonKey: "enhanced_skill_pts_threshold", dataType: "int"},
-	"超能解放能量阈值": {jsonKey: "liberation_energy_threshold", dataType: "int"},
-	// 万能者
-	"全牌攻击化":   {jsonKey: "all_cards_as_attack", dataType: "bool"},
-	"阶段伤害阈值":  {jsonKey: "phase_thresholds", dataType: "int_list"},
-	"阶段1攻击加成": {jsonKey: "phase1_attack_bonus", dataType: "int"},
-	"阶段2牌面加成": {jsonKey: "phase2_card_bonus", dataType: "int"},
-	"阶段3攻击倍率": {jsonKey: "phase3_attack_multiplier", dataType: "int"},
-	// 血魔
-	"受伤牌面加成阈值": {jsonKey: "dmg_received_threshold", dataType: "int"},
-	"受伤后牌面加成":  {jsonKey: "dmg_received_card_bonus", dataType: "int"},
-	"吸血伤害阈值":   {jsonKey: "lifesteal_damage_threshold", dataType: "int"},
-	"吸血激活点数":   {jsonKey: "lifesteal_activate_pts", dataType: "int"},
-	"强化技能攻击加成": {jsonKey: "enhanced_atk_bonus", dataType: "int"},
-	"强化技能自伤":   {jsonKey: "enhanced_self_damage", dataType: "int"},
-	"普通技能自伤":   {jsonKey: "normal_self_damage", dataType: "int"},
-	"普通技能摸牌数":  {jsonKey: "normal_draw_cards", dataType: "int"},
-	// 反伤者
-	"反弹层数上限":   {jsonKey: "max_reflect_stacks", dataType: "int"},
-	"强化免疫阶段数":  {jsonKey: "enhanced_immune_phases", dataType: "int"},
-	"解放技能消耗":   {jsonKey: "lib_cost", dataType: "int"},
-	"解放技能点数阈值": {jsonKey: "lib_pts_threshold", dataType: "int"},
-	"解放免疫阶段数":  {jsonKey: "lib_immune_phases", dataType: "int"},
-	// 建造者
-	"工人基础效率":   {jsonKey: "base_worker_eff", dataType: "int"},
-	"一层房效率加成":  {jsonKey: "house1_eff_bonus", dataType: "int"},
-	"二层房减伤":    {jsonKey: "house2_dmg_reduction", dataType: "int"},
-	"三层房回血":    {jsonKey: "house3_heal", dataType: "int"},
-	"房子减半伤害阈值": {jsonKey: "damage_halve_threshold", dataType: "int"},
-	"解放最低房子数":  {jsonKey: "lib_house_threshold", dataType: "int"},
-	"解放最低点数":   {jsonKey: "lib_pts_min", dataType: "int"},
-	"解放最高点数":   {jsonKey: "lib_pts_max", dataType: "int"},
-}
-
-// "强化技能点数阈值" 在血魔中对应 enhanced_pts_threshold 而非 enhanced_skill_pts_threshold
-// 需要按角色区分的参数映射
-var hooksParamOverrides = map[string]map[string]string{
-	"反伤者": {
-		"普通技能消耗":   "normal_cost",
-		"强化技能消耗":   "enhanced_cost",
-		"强化技能点数阈值": "enhanced_pts_threshold",
-	},
-	"血魔": {
-		"强化技能点数阈值": "enhanced_pts_threshold",
-	},
-}
+// 中文参数名 → 英文 JSON key 的映射关系由 echo/internal/excelmap 维护，
+// 与反向工具 cmd/jsontoexcel 共用同一份事实，避免脱节。
 
 func parseHooksConfig(f *excelize.File, charMap map[string]map[string]any) error {
 	const sheet = "特殊机制"
@@ -300,17 +241,9 @@ func parseHooksConfig(f *excelize.File, charMap map[string]map[string]any) error
 			continue // 空行或分隔行
 		}
 
-		def, ok := hooksParamMap[paramName]
+		jsonKey, def, ok := excelmap.ResolveJSONKey(charName, paramName)
 		if !ok {
 			return fmt.Errorf("第%d行: 未知参数名[%s]", i+2, paramName)
-		}
-
-		// 检查角色特定的key覆盖
-		jsonKey := def.jsonKey
-		if overrides, ok := hooksParamOverrides[charName]; ok {
-			if override, ok := overrides[paramName]; ok {
-				jsonKey = override
-			}
 		}
 
 		if _, exists := charMap[charName]; !exists {
@@ -322,7 +255,7 @@ func parseHooksConfig(f *excelize.File, charMap map[string]map[string]any) error
 		}
 
 		// 按类型解析值
-		switch def.dataType {
+		switch def.DataType {
 		case "int":
 			n, err := strconv.Atoi(strings.TrimSpace(paramValue))
 			if err != nil {

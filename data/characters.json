@@ -329,5 +329,22 @@
     "name": "建造者",
     "normal": {},
     "passive": {}
+  },
+  {
+    "enhanced": {},
+    "hooks_config": {
+      "all_cards_as_attack": true,
+      "unlock_threshold": 50,
+      "unlocked_draw": 2
+    },
+    "id": "jiyuan",
+    "lib": {},
+    "lib_threshold": 0,
+    "manual_lib": false,
+    "max_energy": 100,
+    "max_hp": 85,
+    "name": "积怨者",
+    "normal": {},
+    "passive": {}
   }
 ]

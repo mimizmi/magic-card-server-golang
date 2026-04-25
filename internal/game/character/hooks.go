@@ -49,6 +49,20 @@ type CharHooks struct {
 	// 用于吸血效果。
 	OnDamageLanded func(finalDamage int, es map[string]any) int
 
+	// OnAttackHit 在此玩家通过攻击牌成功造成 >0 最终伤害后调用，返回需补抽的牌数（0=不补抽）。
+	// 仅由攻击路径触发；不会被技能直接伤害、反弹伤害或濒死扣血触发。
+	OnAttackHit func(finalDamage int, es map[string]any) int
+
+	// ── 出牌钩子 ─────────────────────────────────────────────────
+
+	// OnCardPlayed 在 handlePlayCard 取出牌后、AllCardsAsAttack 转换前立刻调用。
+	// 角色可读取卡牌的"原始功能"（攻击/技能/能耗）以做累积分类等统计。
+	OnCardPlayed func(cardType string, points int, es map[string]any)
+
+	// IsAttackUndefendable 在攻击牌即将创建 PendingAttack 之前调用。
+	// 返回 true 时引擎跳过防御窗口，直接对对手施加该次攻击伤害（视为技能伤害）。
+	IsAttackUndefendable func(es map[string]any) bool
+
 	// ── 攻击修正钩子 ─────────────────────────────────────────────
 
 	// ModifyCardPoints 在 BonusOutgoing 和场地加成之前修改牌面点数。

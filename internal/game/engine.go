@@ -472,6 +472,11 @@ func (e *Engine) handlePlayCard(seat int, payload []byte) {
 		return
 	}
 
+	// 钩子：OnCardPlayed（在 AllCardsAsAttack 转换前，看到原始牌型）
+	if p.Char != nil && p.Char.Def.Hooks != nil && p.Char.Def.Hooks.OnCardPlayed != nil {
+		p.Char.Def.Hooks.OnCardPlayed(c.CardType.String(), c.Points, p.Char.ExtraState)
+	}
+
 	// 万能者被动：所有牌均视为攻击牌（优先级高于场地效果）
 	effectiveType := c.CardType
 	if p.Char != nil && p.Char.Def.Hooks != nil && p.Char.Def.Hooks.AllCardsAsAttack {
@@ -503,6 +508,19 @@ func (e *Engine) handlePlayCard(seat int, payload []byte) {
 				e.loseEnergy(seat, spent)
 			}
 			attackPoints += extra
+		}
+		// 钩子：IsAttackUndefendable（积怨者解锁的牌型作为技能伤害直接落地）
+		undefendable := false
+		if p.Char != nil && p.Char.Def.Hooks != nil && p.Char.Def.Hooks.IsAttackUndefendable != nil {
+			undefendable = p.Char.Def.Hooks.IsAttackUndefendable(p.Char.ExtraState)
+		}
+		if undefendable {
+			defSeat := 1 - seat
+			slog.Info("undefendable attack resolved as skill damage",
+				"seat", seat, "attackPoints", attackPoints, "defSeat", defSeat)
+			e.applyAttackDamage(seat, defSeat, attackPoints, "强化技能伤害（不可防御）")
+			e.broadcastState("undefendable attack resolved")
+			break
 		}
 		defSeat := 1 - seat
 		e.state.PendingAttack = &PendingAttack{AttackerSeat: seat, AttackPoints: attackPoints}
@@ -634,7 +652,7 @@ func (e *Engine) handleDefenseAction(seat int, payload []byte) {
 	if req.Pass {
 		// 放弃防御：承受全部伤害
 		slog.Info("defense passed", "seat", seat, "damage", attackPoints)
-		e.applyDamageFull(atkSeat, seat, attackPoints, "攻击牌伤害")
+		e.applyAttackDamage(atkSeat, seat, attackPoints, "攻击牌伤害")
 		e.broadcastState("defense passed")
 		return
 	}
@@ -649,13 +667,13 @@ func (e *Engine) handleDefenseAction(seat int, payload []byte) {
 		defCard, err = p.Hand.TakeSynth(req.Slot)
 	default:
 		// 区域非法，回退到 Pass 处理
-		e.applyDamageFull(atkSeat, seat, attackPoints, "攻击牌伤害")
+		e.applyAttackDamage(atkSeat, seat, attackPoints, "攻击牌伤害")
 		e.broadcastState("defense invalid zone, treated as pass")
 		return
 	}
 	if err != nil || defCard == nil {
 		// 槽位无牌，同 Pass 处理
-		e.applyDamageFull(atkSeat, seat, attackPoints, "攻击牌伤害")
+		e.applyAttackDamage(atkSeat, seat, attackPoints, "攻击牌伤害")
 		e.broadcastState("defense card missing, treated as pass")
 		return
 	}
@@ -666,14 +684,15 @@ func (e *Engine) handleDefenseAction(seat int, payload []byte) {
 		"atkPoints", attackPoints, "remaining", remaining)
 
 	if remaining > 0 {
-		e.applyDamageFull(atkSeat, seat, remaining, "攻击牌伤害（防御后剩余）")
+		e.applyAttackDamage(atkSeat, seat, remaining, "攻击牌伤害（防御后剩余）")
 	}
 	e.broadcastState("defense resolved")
 }
 
 // applyDamageFull 对目标玩家造成伤害，触发完整的伤害钩子链。
 // sourceSeat: 伤害来源座位（与 targetSeat 相同表示自伤；-1 表示环境/无来源）。
-func (e *Engine) applyDamageFull(sourceSeat, targetSeat, amount int, detail string) {
+// 返回最终落地的伤害值（已含减免、反伤判定）。调用方可忽略返回值。
+func (e *Engine) applyDamageFull(sourceSeat, targetSeat, amount int, detail string) int {
 	p := e.state.Players[targetSeat]
 
 	// 被动：受击方角色减免（主角色 + 赐福第二角色叠加）
@@ -741,6 +760,25 @@ func (e *Engine) applyDamageFull(sourceSeat, targetSeat, amount int, detail stri
 
 	if p.HP <= 0 {
 		e.handleHPZero(targetSeat)
+	}
+	return finalDamage
+}
+
+// applyAttackDamage 是攻击牌路径专用的伤害应用，落地后额外触发 OnAttackHit 钩子。
+// 用于：防御 Pass / 防御后剩余 / 不可防御攻击 — 三种由攻击牌产生的伤害分支。
+func (e *Engine) applyAttackDamage(sourceSeat, targetSeat, amount int, detail string) {
+	finalDamage := e.applyDamageFull(sourceSeat, targetSeat, amount, detail)
+	if finalDamage <= 0 || sourceSeat < 0 || sourceSeat == targetSeat {
+		return
+	}
+	src := e.state.Players[sourceSeat]
+	if src.Char == nil || src.Char.Def.Hooks == nil || src.Char.Def.Hooks.OnAttackHit == nil {
+		return
+	}
+	draw := src.Char.Def.Hooks.OnAttackHit(finalDamage, src.Char.ExtraState)
+	if draw > 0 {
+		src.Hand.DrawIntoHand(src.Deck, draw)
+		e.sendStateTo(sourceSeat, "OnAttackHit draw")
 	}
 }
 
