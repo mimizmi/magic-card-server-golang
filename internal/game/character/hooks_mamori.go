@@ -19,8 +19,8 @@ func init() {
 	//   "lib_immune_phases"   int  - 剩余全免疫+反弹阶段数（每回合=5个phase）
 	//   "lethal_save_used"    bool - 被动保命已使用
 
-	registry["fanshang"] = &CharDef{
-		ID: "fanshang",
+	registry["mamori"] = &CharDef{
+		ID: "mamori",
 		Hooks: &CharHooks{
 			OnPhaseStart: func(phase string, es map[string]any) (int, string) {
 				// 每个阶段递减免疫计数器
@@ -68,7 +68,7 @@ func init() {
 					es["reflect_stacks"] = stacks - 1 // 消耗一层
 					acc := esInt(es, "accumulated_blocked", 0)
 					es["accumulated_blocked"] = acc + damage
-					return 0, damage // 免疫并反弹
+					return damage, damage // 受到伤害同时反射等量伤害
 				}
 
 				return damage, 0 // 正常受伤
@@ -96,7 +96,7 @@ func init() {
 			},
 
 			UseSkillOverride: func(pts int, es map[string]any) (*SkillResult, int, bool) {
-				cfg := HooksConfig("fanshang")
+				cfg := HooksConfig("mamori")
 
 				libPtsThreshold := hcInt(cfg, "lib_pts_threshold", 25)
 				enhancedPtsThreshold := hcInt(cfg, "enhanced_pts_threshold", 3)
@@ -120,7 +120,7 @@ func init() {
 					cost := hcInt(cfg, "enhanced_cost", 15)
 					return &SkillResult{
 						Tier: TierEnhanced,
-						Desc: fmt.Sprintf("技能护盾：接下来 %d 个阶段免疫技能伤害", phases),
+						Desc: fmt.Sprintf("技能障壁：接下来 %d 个阶段免疫技能伤害", phases),
 					}, cost, true
 				}
 
@@ -129,14 +129,14 @@ func init() {
 				if stacks >= maxReflectStacks {
 					return &SkillResult{
 						Tier: TierNormal,
-						Desc: fmt.Sprintf("反伤护盾已满（%d/%d层），无法继续叠加", stacks, maxReflectStacks),
+						Desc: fmt.Sprintf("镜反护盾已满（%d/%d层），无法继续叠加", stacks, maxReflectStacks),
 					}, 0, true
 				}
 				es["reflect_stacks"] = stacks + 1
 				cost := hcInt(cfg, "normal_cost", 10)
 				return &SkillResult{
 					Tier: TierNormal,
-					Desc: fmt.Sprintf("反伤护盾：获得1层反弹（当前%d/%d层），受攻击时消耗1层反弹伤害", stacks+1, maxReflectStacks),
+					Desc: fmt.Sprintf("镜反护盾：获得1层反弹（当前%d/%d层），受攻击时消耗1层反弹伤害", stacks+1, maxReflectStacks),
 				}, cost, true
 			},
 
