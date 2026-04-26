@@ -11,8 +11,8 @@ func init() {
 	//
 	// ExtraState：
 	//   last_skill_pts int —— 本回合最近一次成功使用技能牌的点数
-	registry["jielv"] = &CharDef{
-		ID: "jielv",
+	registry["rikka"] = &CharDef{
+		ID: "rikka",
 		Hooks: &CharHooks{
 			// 行动阶段开始：清空"上一次技能点数"，使本回合首张技能牌不受限制。
 			OnPhaseStart: func(phase string, es map[string]any) (int, string) {
@@ -41,7 +41,7 @@ func init() {
 
 			// 替换默认技能档位：直接造成 pts 伤害 + 抽 pts 张牌，消耗 1 点能量。
 			UseSkillOverride: func(pts int, es map[string]any) (*SkillResult, int, bool) {
-				cfg := HooksConfig("jielv")
+				cfg := HooksConfig("rikka")
 				cost := hcInt(cfg, "skill_energy_cost", 1)
 				if pts <= 0 {
 					return nil, 0, false // 不应到此处；走默认逻辑兜底

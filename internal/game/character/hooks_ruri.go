@@ -4,8 +4,8 @@ func init() {
 	// 积怨者：所有手牌均视为攻击牌；分类累计三种"原始牌型"对外造成的伤害；
 	// 任意一类累计达到阈值（默认 50）后，该牌型的攻击转为不可防御的技能伤害，
 	// 并在成功落地伤害后补抽两张牌。
-	registry["jiyuan"] = &CharDef{
-		ID: "jiyuan",
+	registry["ruri"] = &CharDef{
+		ID: "ruri",
 		Hooks: &CharHooks{
 			AllCardsAsAttack: true,
 
@@ -17,7 +17,7 @@ func init() {
 			// 在创建 PendingAttack 之前判定：
 			// 若本次出牌的"原始牌型"累计伤害已达阈值，本次攻击转为不可防御的技能伤害。
 			IsAttackUndefendable: func(es map[string]any) bool {
-				cfg := HooksConfig("jiyuan")
+				cfg := HooksConfig("ruri")
 				threshold := hcInt(cfg, "unlock_threshold", 50)
 				t := esStr(es, "last_played_type", "")
 				if t == "" {
@@ -42,7 +42,7 @@ func init() {
 
 			// 已解锁牌型成功造成伤害后补抽 N 张（默认 2）。
 			OnAttackHit: func(dmg int, es map[string]any) int {
-				cfg := HooksConfig("jiyuan")
+				cfg := HooksConfig("ruri")
 				threshold := hcInt(cfg, "unlock_threshold", 50)
 				draw := hcInt(cfg, "unlocked_draw", 2)
 				t := esStr(es, "last_played_type", "")
@@ -59,7 +59,7 @@ func init() {
 
 			// 自身视图：展示三类累计伤害与解锁状态。
 			BuildExtraInfo: func(es map[string]any) map[string]any {
-				cfg := HooksConfig("jiyuan")
+				cfg := HooksConfig("ruri")
 				threshold := hcInt(cfg, "unlock_threshold", 50)
 				return map[string]any{
 					"jiyuan_dmg_attack":    esInt(es, "dmg_攻击", 0),
@@ -74,7 +74,7 @@ func init() {
 
 			// 公开视图：仅暴露已解锁牌型给对手，便于战术判断（隐藏具体进度）。
 			BuildPublicExtra: func(es map[string]any) map[string]any {
-				cfg := HooksConfig("jiyuan")
+				cfg := HooksConfig("ruri")
 				threshold := hcInt(cfg, "unlock_threshold", 50)
 				return map[string]any{
 					"jiyuan_unlock_attack": esInt(es, "dmg_攻击", 0) >= threshold,

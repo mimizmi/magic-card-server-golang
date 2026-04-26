@@ -15,15 +15,15 @@ func init() {
 	//   trigger_count       int          —— 累计成功引爆次数
 	//   liberation_unlocked bool         —— 解放被动是否已解锁
 	//   last_played_type    string       —— 复用 OnCardPlayed/OnDamageDealt 通信
-	registry["keyin"] = &CharDef{
-		ID: "keyin",
+	registry["runa"] = &CharDef{
+		ID: "runa",
 		Hooks: &CharHooks{
 			// 行动阶段开始：推进回合，清理过期印记，重置每回合计数；解放后自动引爆。
 			OnPhaseStart: func(phase string, es map[string]any) (int, string) {
 				if phase != "action" {
 					return 0, ""
 				}
-				cfg := HooksConfig("keyin")
+				cfg := HooksConfig("runa")
 				libCount := hcInt(cfg, "liberation_trigger_count", 3)
 
 				round := esInt(es, "keyin_round", 0) + 1
@@ -31,7 +31,7 @@ func init() {
 				es["marks_this_turn"] = 0
 
 				// 印记仅保留一回合：清除 mark.round <= round-2 的（即"下回合结束清除"）。
-				marks := keyinGetMarks(es)
+				marks := runaGetMarks(es)
 				kept := marks[:0]
 				for _, m := range marks {
 					mr, _ := m["round"].(int)
@@ -39,16 +39,16 @@ func init() {
 						kept = append(kept, m)
 					}
 				}
-				es["marks"] = keyinAnySlice(kept)
+				es["marks"] = runaAnySlice(kept)
 
 				// 解放被动：引爆栈顶最近一个（必须是上回合，本回合刚施加的不引爆）。
 				if esBool(es, "liberation_unlocked", false) || esInt(es, "trigger_count", 0) >= libCount {
 					es["liberation_unlocked"] = true
-					if idx := keyinTopBefore(kept, round); idx >= 0 {
+					if idx := runaTopBefore(kept, round); idx >= 0 {
 						top := kept[idx]
 						kept = append(kept[:idx], kept[idx+1:]...)
-						es["marks"] = keyinAnySlice(kept)
-						keyinDetonate(es, top, cfg, "解放·自动引爆")
+						es["marks"] = runaAnySlice(kept)
+						runaDetonate(es, top, cfg, "解放·自动引爆")
 						es["trigger_count"] = esInt(es, "trigger_count", 0) + 1
 						return 0, "解放被动：自动引爆栈顶印记"
 					}
@@ -63,7 +63,7 @@ func init() {
 				if cardType != "技能" {
 					return
 				}
-				cfg := HooksConfig("keyin")
+				cfg := HooksConfig("runa")
 				maxPerTurn := hcInt(cfg, "max_marks_per_turn", 3)
 				placed := esInt(es, "marks_this_turn", 0)
 				if placed >= maxPerTurn {
@@ -79,12 +79,12 @@ func init() {
 					round = 1
 					es["keyin_round"] = 1
 				}
-				marks := keyinGetMarks(es)
+				marks := runaGetMarks(es)
 				marks = append(marks, map[string]any{
 					"parity": parity,
 					"round":  round,
 				})
-				es["marks"] = keyinAnySlice(marks)
+				es["marks"] = runaAnySlice(marks)
 				es["marks_this_turn"] = placed + 1
 			},
 
@@ -96,14 +96,14 @@ func init() {
 				if esStr(es, "last_played_type", "") != "攻击" {
 					return
 				}
-				cfg := HooksConfig("keyin")
+				cfg := HooksConfig("runa")
 				libCount := hcInt(cfg, "liberation_trigger_count", 3)
 				round := esInt(es, "keyin_round", 0)
 				wantParity := "double"
 				if dmg%2 != 0 {
 					wantParity = "single"
 				}
-				marks := keyinGetMarks(es)
+				marks := runaGetMarks(es)
 				idx := -1
 				for i := len(marks) - 1; i >= 0; i-- {
 					mr, _ := marks[i]["round"].(int)
@@ -120,8 +120,8 @@ func init() {
 				}
 				m := marks[idx]
 				marks = append(marks[:idx], marks[idx+1:]...)
-				es["marks"] = keyinAnySlice(marks)
-				keyinDetonate(es, m, cfg, "印记引爆")
+				es["marks"] = runaAnySlice(marks)
+				runaDetonate(es, m, cfg, "印记引爆")
 				es["trigger_count"] = esInt(es, "trigger_count", 0) + 1
 				if esInt(es, "trigger_count", 0) >= libCount {
 					es["liberation_unlocked"] = true
@@ -129,7 +129,7 @@ func init() {
 			},
 
 			BuildExtraInfo: func(es map[string]any) map[string]any {
-				marks := keyinGetMarks(es)
+				marks := runaGetMarks(es)
 				single := 0
 				double := 0
 				for _, m := range marks {
@@ -149,7 +149,7 @@ func init() {
 			},
 
 			BuildPublicExtra: func(es map[string]any) map[string]any {
-				marks := keyinGetMarks(es)
+				marks := runaGetMarks(es)
 				if len(marks) == 0 && !esBool(es, "liberation_unlocked", false) {
 					return nil
 				}
@@ -172,8 +172,8 @@ func init() {
 	}
 }
 
-// keyinGetMarks 从 ExtraState 读取印记栈。兼容 []any 与 []map[string]any 两种存储。
-func keyinGetMarks(es map[string]any) []map[string]any {
+// runaGetMarks 从 ExtraState 读取印记栈。兼容 []any 与 []map[string]any 两种存储。
+func runaGetMarks(es map[string]any) []map[string]any {
 	v, ok := es["marks"]
 	if !ok || v == nil {
 		return nil
@@ -193,9 +193,9 @@ func keyinGetMarks(es map[string]any) []map[string]any {
 	return nil
 }
 
-// keyinTopBefore 返回栈中最靠后（最近施加）且 round < currentRound 的印记下标。
+// runaTopBefore 返回栈中最靠后（最近施加）且 round < currentRound 的印记下标。
 // 返回 -1 表示没有可引爆印记（栈空或都是本回合刚施加的）。
-func keyinTopBefore(marks []map[string]any, currentRound int) int {
+func runaTopBefore(marks []map[string]any, currentRound int) int {
 	for i := len(marks) - 1; i >= 0; i-- {
 		mr, _ := marks[i]["round"].(int)
 		if mr < currentRound {
@@ -205,9 +205,9 @@ func keyinTopBefore(marks []map[string]any, currentRound int) int {
 	return -1
 }
 
-// keyinDetonate 把一次引爆产生的"对敌伤害 / 自身回血"写进 pending_*。
+// runaDetonate 把一次引爆产生的"对敌伤害 / 自身回血"写进 pending_*。
 // engine.applyHookPending 在合适的时机（OnPhaseStart 后 / 攻击落地后）实际执行。
-func keyinDetonate(es map[string]any, mark map[string]any, cfg map[string]any, label string) {
+func runaDetonate(es map[string]any, mark map[string]any, cfg map[string]any, label string) {
 	parity, _ := mark["parity"].(string)
 	if parity == "single" {
 		dmg := hcInt(cfg, "single_mark_damage", 10)
@@ -228,8 +228,8 @@ func keyinDetonate(es map[string]any, mark map[string]any, cfg map[string]any, l
 	}
 }
 
-// keyinAnySlice 将 []map[string]any 装回 []any，便于序列化为客户端 JSON 时统一处理。
-func keyinAnySlice(marks []map[string]any) []any {
+// runaAnySlice 将 []map[string]any 装回 []any，便于序列化为客户端 JSON 时统一处理。
+func runaAnySlice(marks []map[string]any) []any {
 	out := make([]any, 0, len(marks))
 	for _, m := range marks {
 		out = append(out, m)

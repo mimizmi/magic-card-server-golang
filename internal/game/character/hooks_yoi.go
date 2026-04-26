@@ -5,12 +5,12 @@ func init() {
 	// 累计能耗牌伤害 ≥ 阈值 → 解锁光形态（每回合行动阶段开始回血）；
 	// 累计技能牌伤害 ≥ 阈值 → 解锁暗形态（每回合行动阶段开始对敌方造成伤害）；
 	// 同时解锁时两个数值均翻倍。
-	registry["mingan"] = &CharDef{
-		ID: "mingan",
+	registry["yoi"] = &CharDef{
+		ID: "yoi",
 		Hooks: &CharHooks{
 			AllCardsAsAttack: true,
 
-			// 出牌时记录"原始牌型"，与 jiyuan 共用 ExtraState 键以复用 OnDamageDealt 累计逻辑。
+			// 出牌时记录"原始牌型"，与 ruri 共用 ExtraState 键以复用 OnDamageDealt 累计逻辑。
 			OnCardPlayed: func(cardType string, _ int, es map[string]any) {
 				es["last_played_type"] = cardType
 			},
@@ -35,7 +35,7 @@ func init() {
 				if phase != "action" {
 					return 0, ""
 				}
-				cfg := HooksConfig("mingan")
+				cfg := HooksConfig("yoi")
 				threshold := hcInt(cfg, "unlock_threshold", 50)
 				lightHeal := hcInt(cfg, "light_heal", 10)
 				darkDmg := hcInt(cfg, "dark_damage", 10)
@@ -79,7 +79,7 @@ func init() {
 
 			// 自身视图：展示两类累计与光/暗/双形态状态。
 			BuildExtraInfo: func(es map[string]any) map[string]any {
-				cfg := HooksConfig("mingan")
+				cfg := HooksConfig("yoi")
 				threshold := hcInt(cfg, "unlock_threshold", 50)
 				lightOn := esInt(es, "dmg_能耗", 0) >= threshold
 				darkOn := esInt(es, "dmg_技能", 0) >= threshold
@@ -95,7 +95,7 @@ func init() {
 
 			// 公开视图：仅暴露形态解锁状态，隐藏具体进度。
 			BuildPublicExtra: func(es map[string]any) map[string]any {
-				cfg := HooksConfig("mingan")
+				cfg := HooksConfig("yoi")
 				threshold := hcInt(cfg, "unlock_threshold", 50)
 				lightOn := esInt(es, "dmg_能耗", 0) >= threshold
 				darkOn := esInt(es, "dmg_技能", 0) >= threshold
