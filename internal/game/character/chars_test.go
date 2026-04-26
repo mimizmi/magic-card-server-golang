@@ -8,7 +8,7 @@ import (
 
 // TestXuemoSkillCostZero 血魔者所有技能档位的能量消耗必须为 0。
 func TestXuemoSkillCostZero(t *testing.T) {
-	inst, err := character.NewInstance("xuemo")
+	inst, err := character.NewInstance("momiji")
 	if err != nil {
 		t.Fatalf("NewInstance: %v", err)
 	}
@@ -36,7 +36,7 @@ func TestXuemoSkillCostZero(t *testing.T) {
 
 // TestLiewenPhaseStart_OnlyActionPhase 裂缝能量只在 "action" 阶段开始时产生。
 func TestLiewenPhaseStart_OnlyActionPhase(t *testing.T) {
-	inst, err := character.NewInstance("liewen")
+	inst, err := character.NewInstance("shigure")
 	if err != nil {
 		t.Fatalf("NewInstance: %v", err)
 	}
