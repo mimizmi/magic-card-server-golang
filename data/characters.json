@@ -2,19 +2,19 @@
   {
     "enhanced": {
       "energy_cost": 20,
-      "name": "强化裁决",
+      "name": "烈焰裁决",
       "result": {
         "deal_direct_damage": 16,
-        "desc": "强化裁决：对对手造成16点直接伤害"
+        "desc": "烈焰裁决：对对手造成16点直接伤害"
       }
     },
-    "id": "licai",
+    "id": "homura",
     "lib": {
       "energy_cost": 80,
-      "name": "绝对裁决",
+      "name": "终末审判",
       "result": {
         "deal_direct_damage": 30,
-        "desc": "绝对裁决：造成30点直接伤害并回复20点生命",
+        "desc": "终末审判：造成30点直接伤害并回复20点生命",
         "heal_self": 20
       }
     },
@@ -22,13 +22,13 @@
     "manual_lib": true,
     "max_energy": 100,
     "max_hp": 100,
-    "name": "力裁者",
+    "name": "焰",
     "normal": {
       "energy_cost": 10,
-      "name": "力裁斩击",
+      "name": "烈焰一闪",
       "result": {
         "deal_direct_damage": 8,
-        "desc": "力裁斩击：对对手造成8点直接伤害"
+        "desc": "烈焰一闪：对对手造成8点直接伤害"
       }
     },
     "passive": {
@@ -38,20 +38,20 @@
   {
     "enhanced": {
       "energy_cost": 16,
-      "name": "镜像反击",
+      "name": "镜影反击",
       "result": {
         "deal_direct_damage": 10,
-        "desc": "镜像反击：摸3张牌并造成10点直接伤害",
+        "desc": "镜影反击：摸3张牌并造成10点直接伤害",
         "draw_cards": 3
       }
     },
-    "id": "jinghuan",
+    "id": "kyoka",
     "lib": {
       "energy_cost": 80,
-      "name": "镜换轮转",
+      "name": "镜界轮回",
       "result": {
         "deal_direct_damage": 20,
-        "desc": "镜换轮转：造成20点直接伤害，回复20点生命，摸2张牌",
+        "desc": "镜界轮回：造成20点直接伤害，回复20点生命，摸2张牌",
         "draw_cards": 2,
         "heal_self": 20
       }
@@ -60,12 +60,12 @@
     "manual_lib": true,
     "max_energy": 100,
     "max_hp": 90,
-    "name": "镜换者",
+    "name": "镜花",
     "normal": {
       "energy_cost": 8,
-      "name": "镜像映射",
+      "name": "镜影映射",
       "result": {
-        "desc": "镜像映射：摸2张牌并回复5点生命",
+        "desc": "镜影映射：摸2张牌并回复5点生命",
         "draw_cards": 2,
         "heal_self": 5
       }
@@ -84,13 +84,13 @@
         "gain_energy": 30
       }
     },
-    "id": "kongshou",
+    "id": "sorane",
     "lib": {
       "energy_cost": 60,
-      "name": "空手相搏",
+      "name": "空手搏斗",
       "result": {
         "deal_direct_damage": 20,
-        "desc": "空手相搏：造成20点直接伤害，回复20点生命，获得20点能量",
+        "desc": "空手搏斗：造成20点直接伤害，回复20点生命，获得20点能量",
         "gain_energy": 20,
         "heal_self": 20
       }
@@ -99,7 +99,7 @@
     "manual_lib": true,
     "max_energy": 100,
     "max_hp": 95,
-    "name": "空手者",
+    "name": "空音",
     "normal": {
       "energy_cost": 5,
       "name": "虚拳引气",
@@ -120,13 +120,13 @@
         "heal_self": 10
       }
     },
-    "id": "shiyuan",
+    "id": "miyako",
     "lib": {
       "energy_cost": 80,
-      "name": "渊噬万物",
+      "name": "暗噬万象",
       "result": {
         "deal_direct_damage": 28,
-        "desc": "渊噬万物：造成28点直接伤害并汲取20点生命",
+        "desc": "暗噬万象：造成28点直接伤害并汲取20点生命",
         "heal_self": 20
       }
     },
@@ -134,13 +134,13 @@
     "manual_lib": true,
     "max_energy": 100,
     "max_hp": 95,
-    "name": "噬渊者",
+    "name": "深宵",
     "normal": {
       "energy_cost": 10,
-      "name": "噬渊之触",
+      "name": "深渊之触",
       "result": {
         "deal_direct_damage": 6,
-        "desc": "噬渊之触：造成6点直接伤害并汲取6点生命",
+        "desc": "深渊之触：造成6点直接伤害并汲取6点生命",
         "heal_self": 6
       }
     },
@@ -149,13 +149,13 @@
   {
     "enhanced": {
       "energy_cost": 20,
-      "name": "烈焰灼血",
+      "name": "血焰之舞",
       "result": {
         "deal_direct_damage": 20,
-        "desc": "烈焰灼血：造成20点直接伤害"
+        "desc": "血焰之舞：造成20点直接伤害"
       }
     },
-    "id": "zhuoxue",
+    "id": "akane",
     "lib": {
       "energy_cost": 80,
       "name": "血焰爆发",
@@ -168,7 +168,7 @@
     "manual_lib": true,
     "max_energy": 100,
     "max_hp": 85,
-    "name": "灼血者",
+    "name": "茜",
     "normal": {
       "energy_cost": 10,
       "name": "灼血冲击",
@@ -184,18 +184,18 @@
   {
     "enhanced": {
       "energy_cost": 16,
-      "name": "殉道之力",
+      "name": "圣女加护",
       "result": {
-        "desc": "殉道之力：回复20点生命并获得10点能量",
+        "desc": "圣女加护：回复20点生命并获得10点能量",
         "gain_energy": 10,
         "heal_self": 20
       }
     },
-    "id": "xundao",
+    "id": "seira",
     "lib": {
-      "name": "殉道解放",
+      "name": "圣女降临",
       "result": {
-        "desc": "殉道解放：自动触发，濒死时回复30点生命并获得10点能量",
+        "desc": "圣女降临：自动触发，濒死时回复30点生命并获得10点能量",
         "gain_energy": 10,
         "heal_self": 30
       }
@@ -204,12 +204,12 @@
     "manual_lib": false,
     "max_energy": 100,
     "max_hp": 110,
-    "name": "殉道者",
+    "name": "圣罗",
     "normal": {
       "energy_cost": 8,
-      "name": "殉道之愿",
+      "name": "圣女祈愿",
       "result": {
-        "desc": "殉道之愿：回复10点生命",
+        "desc": "圣女祈愿：回复10点生命",
         "heal_self": 10
       }
     },
@@ -230,13 +230,13 @@
       "normal_skill_cost": 15,
       "rift_bonus_increment": 2
     },
-    "id": "liewen",
+    "id": "shigure",
     "lib": {},
     "lib_threshold": 0,
     "manual_lib": false,
     "max_energy": 150,
     "max_hp": 150,
-    "name": "时空裂缝者",
+    "name": "时雨",
     "normal": {},
     "passive": {}
   },
@@ -247,19 +247,15 @@
       "phase1_attack_bonus": 2,
       "phase2_card_bonus": 2,
       "phase3_attack_multiplier": 2,
-      "phase_thresholds": [
-        10,
-        50,
-        100
-      ]
+      "phase_thresholds": [10, 50, 100]
     },
-    "id": "wanneng",
+    "id": "mutsuki",
     "lib": {},
     "lib_threshold": 0,
     "manual_lib": false,
     "max_energy": 100,
     "max_hp": 80,
-    "name": "万能者",
+    "name": "梦月",
     "normal": {},
     "passive": {}
   },
@@ -276,13 +272,13 @@
       "normal_draw_cards": 2,
       "normal_self_damage": 10
     },
-    "id": "xuemo",
+    "id": "momiji",
     "lib": {},
     "lib_threshold": 0,
     "manual_lib": false,
     "max_energy": 100,
     "max_hp": 90,
-    "name": "血魔",
+    "name": "红叶",
     "normal": {},
     "passive": {}
   },
@@ -298,13 +294,13 @@
       "max_reflect_stacks": 5,
       "normal_cost": 10
     },
-    "id": "fanshang",
+    "id": "mamori",
     "lib": {},
     "lib_threshold": 0,
     "manual_lib": false,
     "max_energy": 100,
     "max_hp": 95,
-    "name": "反伤者",
+    "name": "真守",
     "normal": {},
     "passive": {}
   },
@@ -313,20 +309,20 @@
     "hooks_config": {
       "base_worker_eff": 1,
       "damage_halve_threshold": 20,
-      "house1_eff_bonus": 2,
+      "house1_worker_bonus": 2,
       "house2_dmg_reduction": 2,
       "house3_heal": 5,
       "lib_house_threshold": 5,
       "lib_pts_max": 25,
       "lib_pts_min": 20
     },
-    "id": "jianzao",
+    "id": "ouka",
     "lib": {},
     "lib_threshold": 0,
     "manual_lib": false,
     "max_energy": 100,
     "max_hp": 90,
-    "name": "建造者",
+    "name": "樱花",
     "normal": {},
     "passive": {}
   },
@@ -337,13 +333,13 @@
       "unlock_threshold": 50,
       "unlocked_draw": 2
     },
-    "id": "jiyuan",
+    "id": "ruri",
     "lib": {},
     "lib_threshold": 0,
     "manual_lib": false,
     "max_energy": 100,
     "max_hp": 85,
-    "name": "积怨者",
+    "name": "琉璃",
     "normal": {},
     "passive": {}
   },
@@ -356,13 +352,13 @@
       "light_heal": 10,
       "unlock_threshold": 50
     },
-    "id": "mingan",
+    "id": "yoi",
     "lib": {},
     "lib_threshold": 0,
     "manual_lib": false,
     "max_energy": 100,
     "max_hp": 90,
-    "name": "明暗者",
+    "name": "宵",
     "normal": {},
     "passive": {}
   },
@@ -375,13 +371,13 @@
       "single_mark_damage": 10,
       "single_mark_heal": 10
     },
-    "id": "keyin",
+    "id": "runa",
     "lib": {},
     "lib_threshold": 0,
     "manual_lib": false,
     "max_energy": 100,
     "max_hp": 90,
-    "name": "刻印者",
+    "name": "琉奈",
     "normal": {},
     "passive": {}
   },
@@ -390,13 +386,29 @@
     "hooks_config": {
       "skill_energy_cost": 1
     },
-    "id": "jielv",
+    "id": "rikka",
     "lib": {},
     "lib_threshold": 0,
     "manual_lib": false,
     "max_energy": 100,
     "max_hp": 95,
-    "name": "节律者",
+    "name": "律花",
+    "normal": {},
+    "passive": {}
+  },
+  {
+    "enhanced": {},
+    "hooks_config": {
+      "lib_first_hit_damage": 20,
+      "lib_subsequent_heal": 15
+    },
+    "id": "yuuki",
+    "lib": {},
+    "lib_threshold": 0,
+    "manual_lib": false,
+    "max_energy": 100,
+    "max_hp": 90,
+    "name": "结城",
     "normal": {},
     "passive": {}
   }
