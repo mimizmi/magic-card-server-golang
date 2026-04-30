@@ -24,7 +24,7 @@ func init() {
 			},
 
 			OnCardPlayed: func(cardType string, points int, es map[string]any) {
-				if cardType != "attack" {
+				if cardType != "攻击" {
 					return
 				}
 				isOdd := points%2 == 1 || points%2 == -1
