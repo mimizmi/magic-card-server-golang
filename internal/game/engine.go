@@ -175,6 +175,19 @@ func (e *Engine) waitCharacterSelect() bool {
 					p.Energy = inst.Def.Hooks.InitEnergy
 				}
 			}
+			// Hooks config 可覆盖初始 HP/能量（包括显式设为 0）
+			if cfg := character.HooksConfig(e.aiCharID); cfg != nil {
+				if hp, ok := cfg["init_hp"]; ok {
+					if f, ok := hp.(float64); ok {
+						p.HP = int(f)
+					}
+				}
+				if en, ok := cfg["init_energy"]; ok {
+					if f, ok := en.(float64); ok {
+						p.Energy = int(f)
+					}
+				}
+			}
 			selected[e.aiSeat] = true
 			slog.Info("AI character auto-selected", "seat", e.aiSeat, "char", e.aiCharID)
 		} else {
@@ -213,6 +226,19 @@ func (e *Engine) waitCharacterSelect() bool {
 				}
 				if inst.Def.Hooks.InitEnergy > 0 {
 					p.Energy = inst.Def.Hooks.InitEnergy
+				}
+			}
+			// Hooks config 可覆盖初始 HP/能量（包括显式设为 0）
+			if cfg := character.HooksConfig(req.CharacterID); cfg != nil {
+				if hp, ok := cfg["init_hp"]; ok {
+					if f, ok := hp.(float64); ok {
+						p.HP = int(f)
+					}
+				}
+				if en, ok := cfg["init_energy"]; ok {
+					if f, ok := en.(float64); ok {
+						p.Energy = int(f)
+					}
 				}
 			}
 			selected[act.Seat] = true
@@ -552,6 +578,13 @@ func (e *Engine) handlePlayCard(seat int, payload []byte) {
 			slog.Info("liberation threshold reached", "seat", seat, "energy", p.Energy)
 		}
 
+	case card.TypeDefense:
+		// 防御牌主动使用：获得 10 点护盾
+		e.state.Players[seat].ShieldHP += 10
+		slog.Info("defense card played actively, shield gained", "seat", seat, "shieldHP", e.state.Players[seat].ShieldHP)
+		e.sendPlayerStatus(seat)
+		e.sendStateTo(seat, "defense card played (shield gained)")
+
 	case card.TypeSkill:
 		// 技能牌可从手牌区或合成区打出，激活角色技能
 		putBack := func() {
@@ -685,6 +718,13 @@ func (e *Engine) handleDefenseAction(seat int, payload []byte) {
 		return
 	}
 
+	// 防御牌：完全格挡攻击伤害
+	if defCard.CardType == card.TypeDefense {
+		slog.Info("defense card nullified attack", "seat", seat, "attackPoints", attackPoints)
+		e.broadcastState("defense card nullified attack")
+		return
+	}
+
 	remaining := attackPoints - defCard.Points
 	slog.Info("defense card played",
 		"seat", seat, "defPoints", defCard.Points,
@@ -720,6 +760,17 @@ func (e *Engine) applyDamageFull(sourceSeat, targetSeat, amount int, detail stri
 	// HPEnergyShared：受伤时同步扣除能量（不低于 0）
 	if p.Char != nil && p.Char.Def.Hooks != nil && p.Char.Def.Hooks.HPEnergyShared {
 		p.Energy = max(p.Energy-finalDamage, 0)
+	}
+
+	// 护盾优先吸收伤害
+	if p.ShieldHP > 0 {
+		if finalDamage <= p.ShieldHP {
+			p.ShieldHP -= finalDamage
+			finalDamage = 0
+		} else {
+			finalDamage -= p.ShieldHP
+			p.ShieldHP = 0
+		}
 	}
 
 	p.HP -= finalDamage
@@ -879,7 +930,7 @@ func (e *Engine) handleHPZero(seat int) {
 		slog.Info("player entered near-death", "seat", seat)
 		e.sendPlayerStatus(seat)
 		e.room.Broadcast(protocol.MsgPlayerStatusEv, protocol.MustEncode(protocol.PlayerStatusEv{
-			Seat: seat, HP: 60, MaxHP: p.MaxHP,
+			Seat: seat, HP: 60, MaxHP: p.MaxHP, ShieldHP: p.ShieldHP,
 			Energy: p.Energy, MaxEnergy: p.MaxEnergy,
 		}))
 	} else {
@@ -1151,6 +1202,7 @@ func (e *Engine) sendPlayerStatus(seat int) {
 		Seat:      seat,
 		HP:        p.HP,
 		MaxHP:     p.MaxHP,
+		ShieldHP:  p.ShieldHP,
 		Energy:    p.Energy,
 		MaxEnergy: p.MaxEnergy,
 	})

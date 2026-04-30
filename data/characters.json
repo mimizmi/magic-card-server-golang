@@ -267,6 +267,8 @@
       "enhanced_atk_bonus": 10,
       "enhanced_pts_threshold": 3,
       "enhanced_self_damage": 20,
+      "init_energy": 0,
+      "init_hp": 100,
       "lifesteal_activate_pts": 25,
       "lifesteal_damage_threshold": 30,
       "normal_draw_cards": 2,
@@ -277,7 +279,7 @@
     "lib_threshold": 0,
     "manual_lib": false,
     "max_energy": 100,
-    "max_hp": 90,
+    "max_hp": 100,
     "name": "红叶",
     "normal": {},
     "passive": {}
@@ -312,6 +314,8 @@
       "house1_worker_bonus": 2,
       "house2_dmg_reduction": 2,
       "house3_heal": 5,
+      "init_energy": 20,
+      "init_hp": 150,
       "lib_house_threshold": 5,
       "lib_pts_max": 25,
       "lib_pts_min": 20
@@ -321,7 +325,7 @@
     "lib_threshold": 0,
     "manual_lib": false,
     "max_energy": 100,
-    "max_hp": 90,
+    "max_hp": 150,
     "name": "樱花",
     "normal": {},
     "passive": {}
