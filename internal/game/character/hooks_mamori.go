@@ -23,7 +23,10 @@ func init() {
 		ID: "mamori",
 		Hooks: &CharHooks{
 			OnPhaseStart: func(phase string, es map[string]any) (int, string) {
-				// 每个阶段递减免疫计数器
+				// 仅在交战中递减免疫计数器（每轮一次），避免每5个阶段就消耗光
+				if phase != "combat" {
+					return 0, ""
+				}
 				var msgs []string
 
 				if v := esInt(es, "skill_immune_phases", 0); v > 0 {
@@ -54,8 +57,8 @@ func init() {
 					return 0, damage // 完全免疫，全额反弹
 				}
 
-				// 优先级2：技能免疫（仅技能伤害）
-				if esInt(es, "skill_immune_phases", 0) > 0 && damageType == "skill direct" {
+				// 优先级2：技能免疫（仅技能伤害/不可防御攻击）
+				if esInt(es, "skill_immune_phases", 0) > 0 && (damageType == "技能直接伤害" || strings.Contains(damageType, "技能伤害")) {
 					acc := esInt(es, "accumulated_blocked", 0)
 					es["accumulated_blocked"] = acc + damage
 					return 0, 0 // 免疫技能伤害，不即时反弹（累计到被动）
