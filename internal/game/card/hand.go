@@ -299,7 +299,7 @@ func (h *HandZone) putBackToZone(zone string, slot int, c *Card) {
 }
 
 // DrawIntoHand 从牌堆抽至多 n 张牌放入手牌区的空槽。
-// 不会超过手牌区当前容量，牌堆空时提前停止。
+// 空槽不足时会自动扩展手牌区容量。牌堆空时提前停止。
 // 返回实际抽到的张数。
 // 用途：技能/解放的"抽N张牌"效果（区别于 Fill 的"补满至N张"）。
 func (h *HandZone) DrawIntoHand(deck *Deck, n int) int {
@@ -313,6 +313,15 @@ func (h *HandZone) DrawIntoHand(deck *Deck, n int) int {
 			h.hand[i] = c
 			drawn++
 		}
+	}
+	// 空槽不足时扩展手牌区
+	for drawn < n {
+		c := deck.Draw()
+		if c == nil {
+			break
+		}
+		h.hand = append(h.hand, c)
+		drawn++
 	}
 	return drawn
 }

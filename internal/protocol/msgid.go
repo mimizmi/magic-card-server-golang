@@ -60,5 +60,6 @@ const (
 	MsgIncomingAttackEv uint16 = 5009 // S→C 来袭攻击通知（等待防御）
 	MsgTurnTimerEv      uint16 = 5010 // S→C 行动倒计时（每秒推送）
 	MsgGameConfigEv     uint16 = 5011 // S→C 游戏配置下发（角色+场地数据）
+	MsgCardPlayedEv     uint16 = 5012 // S→C 卡牌打出通知（双方可见，用于显示出牌区）
 	MsgGameConfigReq    uint16 = 4008 // C→S 客户端请求完整游戏配置（hash不匹配时）
 )

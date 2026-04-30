@@ -503,6 +503,14 @@ func (e *Engine) handlePlayCard(seat int, payload []byte) {
 		return
 	}
 
+	// 广播卡牌打出事件（双方立即看到出牌区更新）
+	e.room.Broadcast(protocol.MsgCardPlayedEv, protocol.MustEncode(protocol.CardPlayedEv{
+		PlayerSeat: seat,
+		CardType:   c.CardType.String(),
+		Faction:    c.SubFaction.String(),
+		Points:     &c.Points,
+	}))
+
 	// 钩子：OnCardPlayed（在 AllCardsAsAttack 转换前，看到原始牌型）
 	if p.Char != nil && p.Char.Def.Hooks != nil && p.Char.Def.Hooks.OnCardPlayed != nil {
 		p.Char.Def.Hooks.OnCardPlayed(c.CardType.String(), c.Points, p.Char.ExtraState)

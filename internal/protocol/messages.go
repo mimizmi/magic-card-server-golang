@@ -165,6 +165,15 @@ type DefenseReq struct {
 	Slot int    `json:"slot,omitempty"`
 }
 
+// CardPlayedEv S→C 卡牌打出通知（双方可见）。
+// 无论卡牌类型，打出时立即广播，客户端用于更新出牌区显示。
+type CardPlayedEv struct {
+	PlayerSeat int    `json:"player_seat"`
+	CardType   string `json:"card_type"`
+	Faction    string `json:"faction"`
+	Points     *int   `json:"points"`
+}
+
 // IncomingAttackEv S→C 来袭攻击通知（防御窗口开启时推送）。
 type IncomingAttackEv struct {
 	AttackerSeat int `json:"attacker_seat"`
