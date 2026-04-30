@@ -127,7 +127,8 @@ type PlayCardReq struct {
 // MoveToSynthReq C→S 将手牌区的牌移入合成区（为合成做准备）。
 // 只有手牌区的牌可以移入合成区，合成区最多容纳 4 张。
 type MoveToSynthReq struct {
-	HandSlot int `json:"hand_slot"` // 1-8
+	HandSlot   int `json:"hand_slot"`             // 1-8
+	TargetSlot int `json:"target_slot,omitempty"` // 1-4, 0=auto
 }
 
 // SynthesizeReq C→S 合成两张牌。

@@ -149,6 +149,17 @@ func (h *HandZone) PutSynth(c *Card) error {
 	return errors.New("合成区已满（最多 4 张）")
 }
 
+func (h *HandZone) PutSynthAt(c *Card, slot int) error {
+	if slot < 1 || slot > 4 {
+		return fmt.Errorf("合成槽位无效: %d（应为 1-4）", slot)
+	}
+	if h.synth[slot-1] != nil {
+		return fmt.Errorf("合成槽位 %d 已被占用", slot)
+	}
+	h.synth[slot-1] = c
+	return nil
+}
+
 // SynthCount 返回合成区当前的牌张数。
 func (h *HandZone) SynthCount() int {
 	count := 0
@@ -178,7 +189,7 @@ func (h *HandZone) AllSynthCards() []*Card {
 // MoveToSynth 将手牌区 handSlot 的牌移入合成区。
 // 安全区（1-4）和弃牌区（5-8）的牌均可移入。
 // 合成区满、或指定手牌槽位为空时报错。
-func (h *HandZone) MoveToSynth(handSlot int) error {
+func (h *HandZone) MoveToSynth(handSlot int, targetSlot int) error {
 	c, err := h.TakeHand(handSlot)
 	if err != nil {
 		return err
@@ -186,10 +197,15 @@ func (h *HandZone) MoveToSynth(handSlot int) error {
 	if c == nil {
 		return fmt.Errorf("手牌槽位 %d 为空", handSlot)
 	}
-	if err := h.PutSynth(c); err != nil {
-		// 合成区满，原路放回
+	var putErr error
+	if targetSlot > 0 {
+		putErr = h.PutSynthAt(c, targetSlot)
+	} else {
+		putErr = h.PutSynth(c)
+	}
+	if putErr != nil {
 		h.hand[handSlot-1] = c
-		return err
+		return putErr
 	}
 	return nil
 }

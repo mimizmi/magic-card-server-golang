@@ -576,7 +576,7 @@ func (e *Engine) handleMoveToSynth(seat int, payload []byte) {
 		e.sendError(seat, protocol.ErrCodeInvalidSlot, "无效请求格式")
 		return
 	}
-	if err := e.state.Players[seat].Hand.MoveToSynth(req.HandSlot); err != nil {
+	if err := e.state.Players[seat].Hand.MoveToSynth(req.HandSlot, req.TargetSlot); err != nil {
 		e.sendError(seat, protocol.ErrCodeInvalidSlot, err.Error())
 		return
 	}
