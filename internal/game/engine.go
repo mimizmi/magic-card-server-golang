@@ -1358,7 +1358,26 @@ func (e *Engine) applySkillResult(seat int, result *character.SkillResult) {
 		e.gainEnergy(seat, result.GainEnergy)
 	}
 	if result.DrawCards > 0 {
-		p.Hand.DrawIntoHand(p.Deck, result.DrawCards)
+		// 角色 MaxHandSize 钩子（如律花：手牌上限=能量值）在此处生效——
+		// 调用 applySkillResult 之前 loseEnergy 已扣完技能消耗，所以钩子读到的
+		// 是消耗后的能量值。抽牌张数被裁剪到 (新手牌上限 - 当前手牌数)，超出
+		// 部分直接丢弃；这正是律花"先扣 n 点能量，再抽 n 张牌，超过上限部分舍去"
+		// 的设计语义。
+		drawN := result.DrawCards
+		if p.Char != nil && p.Char.Def.Hooks != nil && p.Char.Def.Hooks.MaxHandSize != nil {
+			if maxHand := p.Char.Def.Hooks.MaxHandSize(p.Char.ExtraState, p.Energy); maxHand > 0 {
+				room := maxHand - p.Hand.HandCount()
+				if room < 0 {
+					room = 0
+				}
+				if drawN > room {
+					drawN = room
+				}
+			}
+		}
+		if drawN > 0 {
+			p.Hand.DrawIntoHand(p.Deck, drawN)
+		}
 	}
 	if result.DealDirectDamage > 0 {
 		// 直接伤害：不走攻击牌路径，完整钩子链（含减免、OnDamageReceived 等）

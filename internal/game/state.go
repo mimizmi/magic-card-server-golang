@@ -87,16 +87,14 @@ func newPlayerState(seat int) *PlayerState {
 }
 
 // drawCards 补充手牌至 maxSlots 张（正常 8，濒死 4）。
-// 角色钩子 MaxHandSize 可覆盖上限（如节律者：上限=能量值，可 > 8）。
+// 注意：每回合补牌阶段固定补至 HandZoneSize（濒死时 SafeZoneSize），
+// 不再受角色 MaxHandSize 钩子影响——MaxHandSize 仅用于"技能内抽牌"的回合内上限
+// 校验（见 engine.applySkillResult 中 DrawCards 的处理）。这与设计相符：
+// 每回合开始双方均按固定 8 张补牌，律花的"能量=手牌上限"只在出技能牌时生效。
 func (p *PlayerState) drawCards() {
 	maxSlots := card.HandZoneSize
 	if p.IsNearDeath {
 		maxSlots = card.SafeZoneSize // 濒死只能补安全区
-	}
-	if p.Char != nil && p.Char.Def.Hooks != nil && p.Char.Def.Hooks.MaxHandSize != nil {
-		if n := p.Char.Def.Hooks.MaxHandSize(p.Char.ExtraState, p.Energy); n > 0 {
-			maxSlots = n // 直接使用钩子返回值，不做上限压制
-		}
 	}
 	p.Hand.Fill(p.Deck, maxSlots)
 }
