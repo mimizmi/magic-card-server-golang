@@ -726,6 +726,14 @@ func (e *Engine) handleDefenseAction(seat int, payload []byte) {
 		return
 	}
 
+	// 广播卡牌打出事件（防御方打出的牌也是公开出牌，双方出牌区立即更新）
+	e.room.Broadcast(protocol.MsgCardPlayedEv, protocol.MustEncode(protocol.CardPlayedEv{
+		PlayerSeat: seat,
+		CardType:   defCard.CardType.String(),
+		Faction:    defCard.SubFaction.String(),
+		Points:     &defCard.Points,
+	}))
+
 	// 防御牌：完全格挡攻击伤害
 	if defCard.CardType == card.TypeDefense {
 		slog.Info("defense card nullified attack", "seat", seat, "attackPoints", attackPoints)
