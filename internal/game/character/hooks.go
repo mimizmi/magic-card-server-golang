@@ -57,7 +57,7 @@ type CharHooks struct {
 
 	// OnCardPlayed 在 handlePlayCard 取出牌后、AllCardsAsAttack 转换前立刻调用。
 	// 角色可读取卡牌的"原始功能"（攻击/技能/能耗）以做累积分类等统计。
-	OnCardPlayed func(cardType string, points int, es map[string]any)
+	OnCardPlayed func(cardType string, points int, faction string, es map[string]any)
 
 	// IsAttackUndefendable 在攻击牌即将创建 PendingAttack 之前调用。
 	// 返回 true 时引擎跳过防御窗口，直接对对手施加该次攻击伤害（视为技能伤害）。

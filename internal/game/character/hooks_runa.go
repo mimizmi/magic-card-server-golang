@@ -57,7 +57,7 @@ func init() {
 			},
 
 			// OnCardPlayed：记录原始牌型；技能牌则按奇/偶施加印记（受每回合上限限制）。
-			OnCardPlayed: func(cardType string, points int, es map[string]any) {
+			OnCardPlayed: func(cardType string, points int, _ string, es map[string]any) {
 				es["last_played_type"] = cardType
 
 				if cardType != "技能" {

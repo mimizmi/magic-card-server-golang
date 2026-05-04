@@ -2,14 +2,14 @@ package character
 
 func init() {
 	// 结城：封印的魔法少女。
-	// 四个技能通过特定条件的攻击牌触发封印，封印后该次伤害不可抵挡。
+	// 四个封印分别对应四种派系的攻击牌，封印后该次伤害不可抵挡。
 	// 四印全部封印后自动开启解放：每回合首次命中→20不可抵挡+后续命中→附加15恢复。
 	//
 	// ExtraState:
-	//   seal_dream       bool - 梦境封印（<=10单数）
-	//   seal_illusion    bool - 虚幻封印（<=10双数）
-	//   seal_reconstruct bool - 重组封印（>=10单数）
-	//   seal_cycle       bool - 轮回封印（>=10双数）
+	//   seal_dream       bool - 梦境封印（梦境派系攻击牌）
+	//   seal_illusion    bool - 虚幻封印（虚幻派系攻击牌）
+	//   seal_reconstruct bool - 重组封印（重组派系攻击牌）
+	//   seal_cycle       bool - 轮回封印（轮回派系攻击牌）
 	//   lib_active       bool - 四印解放是否激活
 	//   first_hit_used   bool - 本回合首次命中是否已用
 
@@ -23,26 +23,31 @@ func init() {
 				return 0, ""
 			},
 
-			OnCardPlayed: func(cardType string, points int, es map[string]any) {
+			OnCardPlayed: func(cardType string, _ int, faction string, es map[string]any) {
 				if cardType != "攻击" {
 					return
 				}
-				isOdd := points%2 == 1 || points%2 == -1
-				isLow := points <= 10
-				isHigh := points >= 10
-
-				if isLow && isOdd && !esBool(es, "seal_dream", false) {
-					es["seal_dream"] = true
-					es["_seal_triggered"] = "dream"
-				} else if isLow && !isOdd && !esBool(es, "seal_illusion", false) {
-					es["seal_illusion"] = true
-					es["_seal_triggered"] = "illusion"
-				} else if isHigh && isOdd && !esBool(es, "seal_reconstruct", false) {
-					es["seal_reconstruct"] = true
-					es["_seal_triggered"] = "reconstruct"
-				} else if isHigh && !isOdd && !esBool(es, "seal_cycle", false) {
-					es["seal_cycle"] = true
-					es["_seal_triggered"] = "cycle"
+				switch faction {
+				case "梦境":
+					if !esBool(es, "seal_dream", false) {
+						es["seal_dream"] = true
+						es["_seal_triggered"] = "dream"
+					}
+				case "虚幻":
+					if !esBool(es, "seal_illusion", false) {
+						es["seal_illusion"] = true
+						es["_seal_triggered"] = "illusion"
+					}
+				case "重组":
+					if !esBool(es, "seal_reconstruct", false) {
+						es["seal_reconstruct"] = true
+						es["_seal_triggered"] = "reconstruct"
+					}
+				case "轮回":
+					if !esBool(es, "seal_cycle", false) {
+						es["seal_cycle"] = true
+						es["_seal_triggered"] = "cycle"
+					}
 				}
 
 				// 检查四印是否全部封印

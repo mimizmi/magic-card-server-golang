@@ -10,7 +10,7 @@ func init() {
 			AllCardsAsAttack: true,
 
 			// 出牌时记录"原始牌型"，供后续 IsAttackUndefendable / OnDamageDealt 使用。
-			OnCardPlayed: func(cardType string, _ int, es map[string]any) {
+			OnCardPlayed: func(cardType string, _ int, _ string, es map[string]any) {
 				es["last_played_type"] = cardType
 			},
 

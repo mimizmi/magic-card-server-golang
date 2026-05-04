@@ -7,7 +7,7 @@ func init() {
 	// 被动：技能内抽牌时手牌上限 = 当前能量值；每回合开始的固定补 8 张不受此影响。
 	// 技能：使用 n 点的技能牌时，先消耗 n 点能量，再对敌方造成 n 点直接伤害并抽 n 张牌；
 	//       此时手牌上限 = 扣能量后的能量值，若抽 n 张会超过上限，则仅补到上限数量为止。
-	// 限制：本回合每次出技能牌的点数必须 ≥ 上一次出的技能牌点数（行动阶段开始重置）。
+	// 限制：本回合每次出技能牌的点数必须 > 上一次出的技能牌点数（行动阶段开始重置）。
 	//
 	// ExtraState：
 	//   last_skill_pts int —— 本回合最近一次成功使用技能牌的点数
@@ -30,11 +30,11 @@ func init() {
 				return energy
 			},
 
-			// 技能牌前置校验：本回合点数必须 ≥ 上一次。
+			// 技能牌前置校验：本回合点数必须 > 上一次。
 			PreUseSkillCheck: func(pts int, es map[string]any) error {
 				last := esInt(es, "last_skill_pts", 0)
-				if pts < last {
-					return fmt.Errorf("节律：本回合技能点数不得低于上次（上次 %d 点）", last)
+				if pts <= last {
+					return fmt.Errorf("节律：本回合技能点数必须高于上次（上次 %d 点）", last)
 				}
 				return nil
 			},

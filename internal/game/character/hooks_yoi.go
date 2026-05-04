@@ -11,7 +11,7 @@ func init() {
 			AllCardsAsAttack: true,
 
 			// 出牌时记录"原始牌型"，与 ruri 共用 ExtraState 键以复用 OnDamageDealt 累计逻辑。
-			OnCardPlayed: func(cardType string, _ int, es map[string]any) {
+			OnCardPlayed: func(cardType string, _ int, _ string, es map[string]any) {
 				es["last_played_type"] = cardType
 			},
 
